@@ -1,24 +1,37 @@
 import { Request, Response, NextFunction } from "express";
 import { ApiError } from "./ApiError";
+import { PrismaClient } from "../generated/prisma";
+
+const prisma = new PrismaClient();
 
 // Define Role enum to match Prisma schema
-enum Role {
+export enum Role {
   PATIENT = "PATIENT",
   DOCTOR = "DOCTOR",
   ADMIN = "ADMIN",
 }
-enum AppointmentStatus {
-    PENDING="PENDING",
-    COMPLETED="COMPLETED",
-    CANCELLED="CANCELLED"
-  }
 
-// Extend Express Request to include user with proper role type
-interface UserRequest extends Request {
-  user: {
+export enum AppointmentStatus {
+  PENDING = "PENDING",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+}
+
+// Extend Express Request to include user with proper role type and relations
+export interface UserRequest extends Request {
+  user?: {
     id: string;
     role: Role;
     email: string;
+    patient?: {
+      id: string;
+    } | null;
+    doctor?: {
+      id: string;
+    } | null;
+    admin?: {
+      id: string;
+    } | null;
   };
 }
 
@@ -27,7 +40,7 @@ export const isAdmin = (
   res: Response,
   next: NextFunction
 ): void => {
-  if (req.user.role !== Role.ADMIN) {
+  if (!req.user || req.user.role !== Role.ADMIN) {
     res
       .status(403)
       .json(new ApiError(403, "Unauthorized: Admin access required"));
@@ -37,11 +50,12 @@ export const isAdmin = (
 };
 
 export const isDoctor = (
-  req: UserRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): void => {
-  if (req.user.role !== Role.DOCTOR) {
+  const userReq = req as UserRequest;
+  if (!userReq.user || userReq.user.role !== Role.DOCTOR) {
     res
       .status(403)
       .json(new ApiError(403, "Unauthorized: Doctor access required"));
@@ -55,7 +69,7 @@ export const isPatient = (
   res: Response,
   next: NextFunction
 ): void => {
-  if (req.user.role !== Role.PATIENT) {
+  if (!req.user || req.user.role !== Role.PATIENT) {
     res
       .status(403)
       .json(new ApiError(403, "Unauthorized: Patient access required"));
@@ -69,7 +83,10 @@ export const doctorOrAdminAccess = (
   res: Response,
   next: NextFunction
 ): void => {
-  if (req.user.role !== Role.DOCTOR && req.user.role !== Role.ADMIN) {
+  if (
+    !req.user ||
+    (req.user.role !== Role.DOCTOR && req.user.role !== Role.ADMIN)
+  ) {
     res
       .status(403)
       .json(new ApiError(403, "Unauthorized: Doctor or Admin access required"));
@@ -148,6 +165,12 @@ export const validatePrescription = (prescription: string): boolean => {
 export const validateClinicLocation = (location: string): boolean => {
   return location.length >= 5 && location.length <= 200;
 };
+
+export function isValidUUID(id: string): boolean {
+  const uuidRegex =
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+  return uuidRegex.test(id);
+}
 
 export const validateSpecialty = (specialty: string): boolean => {
   const validSpecialties = [
@@ -347,6 +370,3 @@ export const formatMedicalReport = (data: {
 
   return report.join("\n");
 };
-
-
-export { Role, AppointmentStatus }; //so that we can use it in other files easily no need to import it again and again from prisma schema

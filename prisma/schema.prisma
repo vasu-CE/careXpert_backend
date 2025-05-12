@@ -26,6 +26,12 @@ enum AppointmentStatus {
   CANCELLED
 }
 
+enum TimeSlotStatus {
+  AVAILABLE
+  BOOKED
+  CANCELLED
+}
+
 model User {
   id        String   @id @default(uuid())
   name      String
@@ -61,6 +67,7 @@ model Doctor {
   appointments   Appointment[]    @relation("DoctorAppointments")
   prescriptions  Prescription[]
   patientHistory PatientHistory[]
+  timeSlots      TimeSlot[]
 
   user User @relation("DoctorUser", fields: [userId], references: [id])
 }
@@ -78,15 +85,16 @@ model Appointment {
   id              String            @id @default(uuid())
   patientId       String
   doctorId        String
-  appointmentDate DateTime          @default(now())
+  timeSlotId      String           @unique
   status          AppointmentStatus @default(PENDING)
   notes           String?
 
-  // Link to Patient and Doctor models directly
-  patient Patient @relation("PatientAppointments", fields: [patientId], references: [id])
-  doctor  Doctor  @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  // Link to Patient, Doctor, and TimeSlot models
+  patient   Patient   @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor    Doctor    @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  timeSlot  TimeSlot  @relation(fields: [timeSlotId], references: [id])
 
-  @@unique([patientId, appointmentDate])
+  @@unique([patientId, timeSlotId])
 }
 
 model Prescription {
@@ -117,4 +125,21 @@ model PatientHistory {
 
   doctor  Doctor  @relation(fields: [doctorId], references: [id])
   patient Patient @relation(fields: [patientId], references: [id])
+}
+
+model TimeSlot {
+  id          String         @id @default(uuid())
+  doctorId    String
+  startTime   DateTime
+  endTime     DateTime
+  status      TimeSlotStatus @default(AVAILABLE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  doctor      Doctor      @relation(fields: [doctorId], references: [id])
+  appointment Appointment?
+
+  @@unique([doctorId, startTime])
+  @@index([doctorId, startTime])
 }

@@ -30,3 +30,11 @@ PORT=3000
 # PostgreSQL
 # DATABASE_URL=postgresql://user:password@localhost:5432/careXpert
 
+
+**new docker setup**
+-install docker and do the setup
+-then check the .env.example use that env sample and use the same url
+-compose up the docker file by right clicking the file(add docker extension too) 
+-check your docker container must be running, check for error if there are none then
+-npx prisma migrate dev (no new migration files must be created,if created then delete the file and use "npx prisma migrate deploy")
+-happy coding
