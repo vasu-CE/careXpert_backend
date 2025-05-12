@@ -14,9 +14,53 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id String @id @default(uuid())
-  name String
-  email String
-  createdAt DateTime @default(now())
+enum Role {
+  PATIENT
+  DOCTOR
+  ADMIN
 }
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id                 String        @id @default(uuid())
+  name               String
+  email              String        @unique
+  password           String
+  role               Role          @default(PATIENT)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  appointmentsAsPatient Appointment[] @relation("PatientAppointments")
+  appointmentsAsDoctor  Appointment[] @relation("DoctorAppointments")
+  messages            Message[]     @relation("SenderMessages")
+}
+
+model Message {
+  id        String     @id @default(uuid())
+  content   String
+  senderId  String
+  roomId    String
+  sender    User       @relation("SenderMessages", fields: [senderId], references: [id])
+  createdAt DateTime   @default(now())
+}
+
+model Appointment {
+  id            String        @id @default(uuid())            
+  patientId     String        
+  doctorId      String        
+  time          DateTime      
+  status        AppointmentStatus @default(PENDING)           
+  reason        String?       
+  prescription  String?       
+  createdAt     DateTime      @default(now())    
+
+  patient       User          @relation("PatientAppointments", fields: [patientId], references: [id]) 
+  doctor        User          @relation("DoctorAppointments", fields: [doctorId], references: [id])  
+}
+
