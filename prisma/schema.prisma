@@ -22,45 +22,99 @@ enum Role {
 
 enum AppointmentStatus {
   PENDING
-  CONFIRMED
   COMPLETED
   CANCELLED
 }
 
 model User {
-  id                 String        @id @default(uuid())
-  name               String
-  email              String        @unique
-  password           String
-  role               Role          @default(PATIENT)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(PATIENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  appointmentsAsPatient Appointment[] @relation("PatientAppointments")
-  appointmentsAsDoctor  Appointment[] @relation("DoctorAppointments")
-  messages            Message[]     @relation("SenderMessages")
+  // Role-specific relations
+  patient Patient? @relation("PatientUser")
+  doctor  Doctor?  @relation("DoctorUser")
+  admin   Admin?   @relation("AdminUser")
 }
 
-model Message {
-  id        String     @id @default(uuid())
-  content   String
-  senderId  String
-  roomId    String
-  sender    User       @relation("SenderMessages", fields: [senderId], references: [id])
-  createdAt DateTime   @default(now())
+model Patient {
+  id             String         @id @default(uuid())
+  userId         String         @unique
+  medicalHistory String?
+  symptoms       Symptom[]
+  appointments   Appointment[]  @relation("PatientAppointments")
+  prescriptions  Prescription[]
+  PatientHistory PatientHistory[]
+
+  user           User             @relation("PatientUser", fields: [userId], references: [id])
+}
+
+model Doctor {
+  id             String           @id @default(uuid())
+  userId         String           @unique
+  specialty      String
+  clinicLocation String
+  appointments   Appointment[]    @relation("DoctorAppointments")
+  prescriptions  Prescription[]
+  patientHistory PatientHistory[]
+
+  user User @relation("DoctorUser", fields: [userId], references: [id])
+}
+
+model Admin {
+  id          String @id @default(uuid())
+  userId      String @unique
+  // Define any admin-specific attributes here, e.g., permissions JSON
+  permissions Json?
+
+  user User @relation("AdminUser", fields: [userId], references: [id])
 }
 
 model Appointment {
-  id            String        @id @default(uuid())            
-  patientId     String        
-  doctorId      String        
-  time          DateTime      
-  status        AppointmentStatus @default(PENDING)           
-  reason        String?       
-  prescription  String?       
-  createdAt     DateTime      @default(now())    
+  id              String            @id @default(uuid())
+  patientId       String
+  doctorId        String
+  appointmentDate DateTime          @default(now())
+  status          AppointmentStatus @default(PENDING)
+  notes           String?
 
-  patient       User          @relation("PatientAppointments", fields: [patientId], references: [id]) 
-  doctor        User          @relation("DoctorAppointments", fields: [doctorId], references: [id])  
+  // Link to Patient and Doctor models directly
+  patient Patient @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor  Doctor  @relation("DoctorAppointments", fields: [doctorId], references: [id])
+
+  @@unique([patientId, appointmentDate])
 }
 
+model Prescription {
+  id               String   @id @default(uuid())
+  doctorId         String
+  patientId        String
+  dateIssued       DateTime @default(now())
+  prescriptionText String
+
+  doctor  Doctor  @relation(fields: [doctorId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
+}
+
+model Symptom {
+  id          String @id @default(uuid())
+  symptomText String
+  patientId   String
+
+  patient Patient @relation(fields: [patientId], references: [id])
+}
+
+model PatientHistory {
+  id           String   @id @default(uuid())
+  doctorId     String
+  patientId    String
+  notes        String
+  dateRecorded DateTime @default(now())
+
+  doctor  Doctor  @relation(fields: [doctorId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
+}
