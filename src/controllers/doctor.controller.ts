@@ -1,7 +1,6 @@
 import { Response } from "express";
-import { PrismaClient, TimeSlotStatus } from "../generated/prisma";
 import { UserRequest } from "../utils/helper";
-import { isValidUUID } from "../utils/helper";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
