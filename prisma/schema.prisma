@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -33,13 +32,14 @@ enum TimeSlotStatus {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(PATIENT)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  password     String
+  role         Role     @default(PATIENT)
+  refreshToken String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Role-specific relations
   patient Patient? @relation("PatientUser")
@@ -48,15 +48,15 @@ model User {
 }
 
 model Patient {
-  id             String         @id @default(uuid())
-  userId         String         @unique
+  id             String           @id @default(uuid())
+  userId         String           @unique
   medicalHistory String?
   symptoms       Symptom[]
-  appointments   Appointment[]  @relation("PatientAppointments")
+  appointments   Appointment[]    @relation("PatientAppointments")
   prescriptions  Prescription[]
   PatientHistory PatientHistory[]
 
-  user           User             @relation("PatientUser", fields: [userId], references: [id])
+  user User @relation("PatientUser", fields: [userId], references: [id])
 }
 
 model Doctor {

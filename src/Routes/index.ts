@@ -9,4 +9,5 @@ const router = express.Router();
 router.use("/doctors", doctorRoutes);
 router.use("/appointments", appointmentRoutes);
 
+
 export default router;
