@@ -59,7 +59,7 @@ export const searchDoctors = async (
       }));
 
   } catch (error) {
-    console.error("Error in searchDoctors:", error);
+    // console.error("Error in searchDoctors:", error);
     res.status(500).json(new ApiError(500 , "Internal Server Error" , [error])); 
   }
 };

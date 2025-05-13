@@ -1,148 +1,139 @@
 import { Response } from "express";
-import { UserRequest , isValidUUID} from "../utils/helper";
-import { PrismaClient , AppointmentStatus , TimeSlotStatus } from "@prisma/client";
+import { UserRequest, isValidUUID } from "../utils/helper";
+import {
+  PrismaClient,
+  AppointmentStatus,
+  TimeSlotStatus,
+} from "@prisma/client";
+import { ApiError } from "../utils/ApiError";
+import { ApiResponse } from "../utils/ApiResponse";
 
 const prisma = new PrismaClient();
 
 export const availableTimeSlots = async (
-    req: UserRequest,
-    res: Response
-  ): Promise<void> => {
-    const { doctorId } = req.params;
-    const date = req.query.date as string | undefined;
-  
-    try {
-      // Validate doctorId format
-      if (!doctorId || !isValidUUID(doctorId)) {
-        res.status(400).json({
-          success: false,
-          error: "Invalid doctor ID format",
-        });
+  req: UserRequest,
+  res: Response
+): Promise<void> => {
+  const { doctorId } = req.params;
+  const date = req.query.date as string | undefined;
+
+  try {
+    // Validate doctorId format
+    if (!doctorId || !isValidUUID(doctorId)) {
+      res.status(400).json(new ApiError(400, "Invalid Doctor ID"));
+      return;
+    }
+
+    // Check if doctor exists
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: doctorId },
+    });
+
+    if (!doctor) {
+      res.status(400).json(new ApiError(400, "Doctor not available"));
+      return;
+    }
+
+    // Build where condition
+    const whereCondition: any = {
+      doctorId,
+      status: TimeSlotStatus.AVAILABLE,
+    };
+
+    if (date) {
+      const selectedDate = new Date(date as string);
+      if (isNaN(selectedDate.getTime())) {
+        res
+          .status(400)
+          .json(
+            new ApiError(400, "Invalid Date format use ISO format(YYYY-MM-DD)")
+          );
         return;
       }
-  
-      // Check if doctor exists
-      const doctor = await prisma.doctor.findUnique({
-        where: { id: doctorId },
-      });
-  
-      if (!doctor) {
-        res.status(404).json({
-          success: false,
-          error: "Doctor not found",
-        });
-        return;
-      }
-  
-      // Build where condition
-      const whereCondition: any = {
-        doctorId,
-        status: TimeSlotStatus.AVAILABLE,
+
+      // Set time range for the selected date
+      const startOfDay = new Date(selectedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(selectedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      whereCondition.startTime = {
+        gte: startOfDay,
+        lt: endOfDay,
       };
-  
-      if (date) {
-        const selectedDate = new Date(date as string);
-        if (isNaN(selectedDate.getTime())) {
-          res.status(400).json({
-            success: false,
-            error: "Invalid date format. Please use ISO format (YYYY-MM-DD)",
-          });
-          return;
-        }
-  
-        // Set time range for the selected date
-        const startOfDay = new Date(selectedDate);
-        startOfDay.setHours(0, 0, 0, 0);
-  
-        const endOfDay = new Date(selectedDate);
-        endOfDay.setHours(23, 59, 59, 999);
-  
-        whereCondition.startTime = {
-          gte: startOfDay,
-          lt: endOfDay,
-        };
-      }
-  
-      // Fetch available time slots
-      const availableSlots = await prisma.timeSlot.findMany({
-        where: whereCondition,
-        orderBy: {
-          startTime: "asc",
-        },
-        select: {
-          id: true,
-          startTime: true,
-          endTime: true,
-          status: true,
-          doctor: {
-            select: {
-              specialty: true,
-              clinicLocation: true,
-              user: {
-                select: {
-                  name: true,
-                },
+    }
+
+    // Fetch available time slots
+    const availableSlots = await prisma.timeSlot.findMany({
+      where: whereCondition,
+      orderBy: {
+        startTime: "asc",
+      },
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        doctor: {
+          select: {
+            specialty: true,
+            clinicLocation: true,
+            user: {
+              select: {
+                name: true,
               },
             },
           },
         },
-      });
-  
-      // Format the response
-      const formattedSlots = availableSlots.map((slot) => ({
-        id: slot.id,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        status: slot.status,
-        doctorName: slot.doctor.user.name,
-        specialty: slot.doctor.specialty,
-        location: slot.doctor.clinicLocation,
-      }));
-  
-      res.status(200).json({
-        success: true,
+      },
+    });
+
+    // Format the response
+    const formattedSlots = availableSlots.map((slot) => ({
+      id: slot.id,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      status: slot.status,
+      doctorName: slot.doctor.user.name,
+      specialty: slot.doctor.specialty,
+      location: slot.doctor.clinicLocation,
+    }));
+
+    res.status(200).json(
+      new ApiResponse(200, {
         data: formattedSlots,
         count: formattedSlots.length,
         filters: {
           doctorId,
           date: date || null,
         },
-      });
-    } catch (error) {
-      console.error("Error in availableTimeSlots:", error);
-      res.status(500).json({
-        success: false,
-        error: "Failed to fetch available time slots",
-        message:
-          error instanceof Error ? error.message : "Unknown error occurred",
-      });
-    }
-  };
+      })
+    );
+  } catch (error) {
+    res.status(400).json(new ApiError(400, "Internal Server Error", [error]));
+  }
+};
 
 export const bookAppointment = async (
   req: UserRequest,
   res: Response
 ): Promise<void> => {
-  const { timeSlotId } =   req.body;
+  const { timeSlotId } = req.body;
   const patientId = req.user?.patient?.id; // Get patient ID from authenticated user
 
   try {
     // Validate patient is logged in and has a patient profile
     if (!patientId) {
-      res.status(403).json({
-        success: false,
-        error:
-          "Only patients can book appointments. Please login as a patient.",
-      });
+      res
+        .status(400)
+        .json(new ApiError(400, "Only patients can book appointments!"));
       return;
     }
 
     // Validate timeSlotId
     if (!timeSlotId) {
-      res.status(400).json({
-        success: false,
-        error: "Time slot ID is required",
-      });
+      res.status(400).json(new ApiError(400, "Time slot id is required"));
       return;
     }
 
@@ -246,19 +237,16 @@ export const bookAppointment = async (
       },
     };
 
-    res.status(201).json({
-      success: true,
-      data: formattedAppointment,
-      message: "Appointment booked successfully",
-    });
+    res
+      .status(200)
+      .json(
+        new ApiResponse(200, {
+          data: formattedAppointment,
+          message: "Appointment booked successfully",
+        })
+      );
   } catch (error) {
-    console.error("Error in bookAppointment:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to book appointment",
-      message:
-        error instanceof Error ? error.message : "Unknown error occurred",
-    });
+    res.status(500).json(new ApiError(500, "Internal Server Error", [error]));
   }
 };
 
@@ -271,11 +259,9 @@ export const getPatientAppointments = async (
 
   try {
     if (!patientId) {
-      res.status(403).json({
-        success: false,
-        error:
-          "Only patients can view their appointments. Please login as a patient.",
-      });
+      res
+        .status(400)
+        .json(new ApiError(400, "Only patients can view there appointments!"));
       return;
     }
 
@@ -314,18 +300,13 @@ export const getPatientAppointments = async (
       },
     }));
 
-    res.status(200).json({
-      success: true,
-      data: formattedAppointments,
-      count: formattedAppointments.length,
-    });
+    res.status(200).json(
+      new ApiResponse(200, {
+        data: formattedAppointments,
+        count: formattedAppointments.length,
+      })
+    );
   } catch (error) {
-    console.error("Error in getPatientAppointments:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch appointments",
-      message:
-        error instanceof Error ? error.message : "Unknown error occurred",
-    });
+    res.status(500).json(new ApiError(500, "Failed to fetch appointments!",[error]));
   }
 };
