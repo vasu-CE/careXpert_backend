@@ -1,9 +1,5 @@
 import { Router } from "express";
-
-
-import {
-  searchDoctors,
-} from "../controllers/doctor.controller";
+import { searchDoctors } from "../controllers/doctor.controller";
 
 const router = Router();
 

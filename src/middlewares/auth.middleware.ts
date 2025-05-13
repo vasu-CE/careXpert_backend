@@ -15,7 +15,7 @@ export const isAuthenticated = async (req:any , res:any , next:any) => {
         if(typeof decodedToken==='object' && decodedToken !== null){
             const user = await prisma.user.findFirst({
                 where : {id : decodedToken.userId},
-                select : {id : true , name : true , email : true}
+                select : {id : true , name : true , email : true , role : true}
             })
 
             if(!user){
