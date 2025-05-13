@@ -65,7 +65,7 @@ const signup = async (req:UserRequest , res:any)  => {
         const result = await prisma.$transaction(async (prisma) => {
             const user = await prisma.user.create({
                 data : {
-                    name,
+                    name : name.toLowerCase(),
                     email,
                     password : hashedPassword,
                     role,
@@ -98,19 +98,22 @@ const signup = async (req:UserRequest , res:any)  => {
 }
 
 const login = async (req:any , res:any) => {
-    const {name ,email , password , role} = req.body;
+    const {name ,email , password} = req.body;
     try{
         if(!email && !name){
             return res.json(new ApiError(400 , "username or email is required"));
         }
-        if([password , role].some((field) => field.trim() === "")){
+        if([password].some((field) => field.trim() === "")){
             return res.json(new ApiError(400 , "All field required"));
         }
 
         const user = await prisma.user.findFirst({
             where : {
-                OR : [{email} , {name}]
-            }
+                OR : [
+                    {email : {equals : email , mode : 'insensitive'}},
+                    {name : {equals : name , mode : 'insensitive'}}
+                ]
+            }, 
         });
 
         if(!user){

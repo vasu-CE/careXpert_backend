@@ -1,6 +1,8 @@
 import { Response } from "express";
 import { UserRequest } from "../utils/helper";
 import { PrismaClient } from "@prisma/client";
+import { ApiResponse } from "../utils/ApiResponse";
+import { ApiError } from "../utils/ApiError";
 
 const prisma = new PrismaClient();
 
@@ -12,10 +14,7 @@ export const searchDoctors = async (
 
   // Input validation
   if (!specialty && !location) {
-    res.status(400).json({
-      error:
-        "At least one search parameter (specialty or location) is required",
-    });
+    res.status(400).json(new ApiError(400 ,"At least one search parameter (specialty or location) is required"));
     return;
   }
 
@@ -51,27 +50,16 @@ export const searchDoctors = async (
       },
     });
 
-    res.status(200).json({
-      success: true,
-      data: doctors,
-      count: doctors.length,
-      filters: {
-        specialty: specialty || null,
-        location: location || null,
-      },
-    });
+    res.status(200).json(new ApiResponse(200 , 
+      {doctors ,
+        filters: {
+          specialty: specialty || null,
+          location: location || null,
+        },
+      }));
+
   } catch (error) {
     console.error("Error in searchDoctors:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to search doctors",
-      message:
-        error instanceof Error ? error.message : "Unknown error occurred",
-    });
+    res.status(500).json(new ApiError(500 , "Internal Server Error" , [error])); 
   }
 };
-
-
-
-
-
