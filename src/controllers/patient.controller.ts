@@ -51,13 +51,7 @@ const searchDoctors = async (
       },
     });
 
-    res.status(200).json(new ApiResponse(200 , 
-      {doctors ,
-        filters: {
-          specialty: specialty || null,
-          location: location || null,
-        },
-      }));
+    res.status(200).json(new ApiResponse(200 , doctors));
 
   } catch (error) {
     // console.error("Error in searchDoctors:", error);
@@ -155,16 +149,7 @@ const availableTimeSlots = async (
       location: slot.doctor.clinicLocation,
     }));
 
-    res.status(200).json(
-      new ApiResponse(200, {
-        data: formattedSlots,
-        count: formattedSlots.length,
-        filters: {
-          doctorId,
-          date: date || null,
-        },
-      })
-    );
+    res.status(200).json(new ApiResponse(200,formattedSlots));
   } catch (error) {
     res.status(400).json(new ApiError(400, "Internal Server Error", [error]));
   }
