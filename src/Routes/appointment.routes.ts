@@ -5,12 +5,13 @@ import {
   getPatientAppointments,
   availableTimeSlots,
 } from "../controllers/appointment.controller";
+import { isAuthenticated } from "../middlewares/auth.middleware";
 
 const router = Router();
 
 // Protected routes (require patient authentication)
 router.get("/:doctorId/timeSlots", availableTimeSlots);
-router.post("/book", isPatient, bookAppointment);
-router.get("/my-appointments", isPatient, getPatientAppointments);
+router.post("/book",isAuthenticated , isPatient, bookAppointment);
+router.get("/my-appointments",isAuthenticated , isPatient, getPatientAppointments);
 
 export default router;

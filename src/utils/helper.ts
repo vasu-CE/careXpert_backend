@@ -69,6 +69,7 @@ export const isPatient = (
   res: Response,
   next: NextFunction
 ): void => {
+
   if (!req.user || req.user.role !== Role.PATIENT) {
     res
       .status(403)
