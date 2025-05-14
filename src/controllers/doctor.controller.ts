@@ -209,4 +209,47 @@ const addTimeslot = async (req:UserRequest , res:Response) => {
   }
 }
 
-export { viewDoctorAppointment, updateAppointmentStatus , addTimeslot };
+const cancelAppointment= async(req:UserRequest,res:any)=>{
+    const {appointmentId}= req.params;
+  const doctorId = req.user?.doctor?.id;
+
+  try{
+    if(!doctorId){
+      res.status(400).json(new ApiError(400,"Only doctor can cancel Appointments!"));
+    }
+    const appointment = await prisma.appointment.findUnique({
+      where:{id:appointmentId},
+      include:{timeSlot:true}
+    });
+
+    if(!appointment||doctorId!==appointment.doctorId){
+      res.status(400).json(new ApiError(400,"Appointment not found or Unauthorized"));
+    }
+
+    else if (appointment.status === AppointmentStatus.CANCELLED) {
+      res.status(400).json(new ApiError(400,"Appointment already Cancelled!"));
+    }
+
+    await prisma.$transaction([
+      prisma.appointment.update({
+        where:{id:appointmentId},
+        data:{
+          status:AppointmentStatus.CANCELLED,
+        },
+      }),
+      prisma.timeSlot.update({
+        where:{id:appointment?.timeSlotId},
+        data:{
+          status:TimeSlotStatus.AVAILABLE,
+        },
+      }),
+    ])
+      return res.status(200).json(new ApiResponse(500,"Appointment Cancelled successfully!"));
+  }
+  catch(error){
+    res.status(400).json(new ApiError(400,"Error occured while cancelling appointment!",[error]));
+  }
+
+}
+
+export { viewDoctorAppointment, updateAppointmentStatus , addTimeslot , cancelAppointment };
