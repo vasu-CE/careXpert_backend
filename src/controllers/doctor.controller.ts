@@ -138,4 +138,75 @@ const updateAppointmentStatus = async (req: UserRequest, res: Response) => {
   }
 };
 
-export { viewDoctorAppointment, updateAppointmentStatus };
+const addTimeslot = async (req:UserRequest , res:Response) => {
+  const {startTime , endTime} = req.body;
+  if(!startTime || !endTime){
+    res.status(400).json(new ApiError(400 , "Start and end time required"));
+    return;
+  }
+
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+
+  if(isNaN(start.getTime()) || isNaN(end.getTime())){
+    res.status(400).json(new ApiError(400 , "Invalid date format"));
+  }
+  const totalTime = (end.getTime() - start.getTime()) / 1000 / 60 / 60;
+
+  if(totalTime > 3 || totalTime < 0){
+    res.status(400).json(new ApiResponse(400 , "Time slot must be between 0 to 3 hours"));
+    return;
+  }
+  try {
+
+    const userId = req.user?.id;
+    const doctor = await prisma.doctor.findUnique({
+      where : {userId},
+      select : {id : true}
+    });
+
+    if (!doctor) {
+      res.status(400).json(new ApiError(400, "No doctor found!"));
+      return;
+    }
+
+    const existingTimeslot = await prisma.timeSlot.findFirst({
+      where : {
+        doctorId : doctor.id,
+        startTime : {lt : end},
+        endTime : {gt : start}
+      },
+      select : {id : true}
+    });
+
+    if(existingTimeslot){
+      res.status(400).json(new ApiError(400 , "Timeslot overlap with the existing timeslot"));
+      return;
+    }
+
+    await prisma.$transaction(async (prisma) => {
+      const timeSlot = await prisma.timeSlot.create({
+        data : {
+          doctorId : doctor.id,
+          startTime,
+          endTime,
+        }
+      });
+      await prisma.doctor.update({
+        where : {id : doctor.id},
+        data : {
+          timeSlots : {
+            connect : {id : timeSlot.id}
+          }
+        }
+      })
+    })
+
+    res.status(200).json(new ApiResponse(200, "Timeslot added suyuccessfully"));
+
+  } catch (error) {
+    res.status(500).json(new ApiError(500 , "Internal server error" , [error]));
+  }
+}
+
+export { viewDoctorAppointment, updateAppointmentStatus , addTimeslot };
