@@ -1,9 +1,11 @@
 import { Router } from "express";
-import { searchDoctors } from "../controllers/doctor.controller";
+import {viewDoctorAppointment } from "../controllers/doctor.controller";
+import { isDoctor } from "../utils/helper";
 
 const router = Router();
 
-router.get("/search", searchDoctors);
+
+
 
 
 export default router;
