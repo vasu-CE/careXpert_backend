@@ -11,7 +11,7 @@ export const isAuthenticated = async (req:any , res:any , next:any) => {
         }
 
         const decodedToken = jwt.verify(token , process.env.ACCESS_TOKEN_SECRET as string);
-
+        
         if(typeof decodedToken==='object' && decodedToken !== null){
             const user = await prisma.user.findFirst({
                 where : {id : decodedToken.userId},
@@ -29,6 +29,6 @@ export const isAuthenticated = async (req:any , res:any , next:any) => {
         }
 
     }catch(err){
-        return res.status(500).json(new ApiError(500 , "error in authenticated"));
+        return res.status(500).json(new ApiError(500 , "error in authenticated" , [err]));
     }
 }
