@@ -7,9 +7,6 @@ import { TimeSlotStatus,AppointmentStatus } from "@prisma/client";
 
 
 
-
-
-
 const searchDoctors = async (
   req: any,
   res: Response

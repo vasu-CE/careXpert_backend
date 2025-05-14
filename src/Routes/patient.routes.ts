@@ -7,9 +7,9 @@ import { isPatient } from '../utils/helper';
 const router = express.Router();
 
 
-router.get("/search",isAuthenticated,isPatient,searchDoctors);
+router.get("/search-doctors",isAuthenticated,isPatient,searchDoctors);
 router.get("/:doctorId/timeSlots",isAuthenticated,isPatient,availableTimeSlots);
-router.post("/book",isAuthenticated,isPatient, bookAppointment);
+router.post("/book-appointment",isAuthenticated,isPatient, bookAppointment);
 router.get("/my-appointments",isAuthenticated,isPatient,getPatientAppointments);
 
 
