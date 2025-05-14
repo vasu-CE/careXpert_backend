@@ -9,10 +9,10 @@ const router = express.Router();
 router.post('/signup' , signup);
 router.post('/login' , login);
 router.post('/logout' , isAuthenticated , logout);
-router.get("/search",searchDoctors);
+router.get("/search",isPatient,searchDoctors);
 router.get("/:doctorId/timeSlots", isPatient,availableTimeSlots);
 router.post("/book", isPatient, bookAppointment);
-router.get("/my-appointments", isPatient, getPatientAppointments);
+router.get("/my-appointments", isAuthenticated, getPatientAppointments);
 
 
 export default router;
