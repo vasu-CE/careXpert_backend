@@ -339,11 +339,16 @@ const bookAppointment = async (
   res: Response
 ): Promise<void> => {
   const { timeSlotId } = req.body;
-  const patientId = req.user?.patient?.id; // Get patient ID from authenticated user
+  // const patientId = req.user?.patient?.id; // Get patient ID from authenticated user
+  const userId = req.user?.id;
+  const patient = await prisma.patient.findUnique({
+    where : {userId},
+    select : { id : true}
+  });
 
   try {
     // Validate patient is logged in and has a patient profile
-    if (!patientId) {
+    if (!patient) {
       res
         .status(400)
         .json(new ApiError(400, "Only patients can book appointments!"));
@@ -386,7 +391,7 @@ const bookAppointment = async (
       // Check if patient already has an appointment at this time
       const existingAppointment = await prisma.appointment.findFirst({
         where: {
-          patientId,
+          patientId : patient.id,
           timeSlot: {
             startTime: timeSlot.startTime,
             endTime: timeSlot.endTime,
@@ -404,7 +409,7 @@ const bookAppointment = async (
       const [appointment, updatedTimeSlot] = await Promise.all([
         prisma.appointment.create({
           data: {
-            patientId,
+            patientId : patient.id,
             doctorId: timeSlot.doctorId,
             timeSlotId,
             status: AppointmentStatus.PENDING,
@@ -474,10 +479,17 @@ const getPatientAppointments = async (
   req: any,
   res: Response
 ): Promise<void> => {
-  const patientId = req.user?.patient?.id;
+  // const patientId = req.user?.patient?.id;
+  const userId = req.user?.id;
+  const patient = await prisma.patient.findUnique({
+    where : {userId},
+    select : {
+      id : true
+    }
+  });
 
   try {
-    if (!patientId) {
+    if (!patient) {
       res
         .status(400)
         .json(new ApiError(400, "Only patients can view there appointments!"));
@@ -485,7 +497,7 @@ const getPatientAppointments = async (
     }
 
     const appointments = await prisma.appointment.findMany({
-      where: { patientId },
+      where: { patientId : patient.id},
       include: {
         doctor: {
           select: {
@@ -519,11 +531,7 @@ const getPatientAppointments = async (
       },
     }));
 
-    res.status(200).json(
-      new ApiResponse(200, {
-        data: formattedAppointments,
-        count: formattedAppointments.length,
-      })
+    res.status(200).json( new ApiResponse(200, formattedAppointments )
     );
   } catch (error) {
     res.status(500).json(new ApiError(500, "Failed to fetch appointments!",[error]));
