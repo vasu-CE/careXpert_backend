@@ -200,32 +200,37 @@ const bookAppointment = async (
           },
         },
       });
-
+     
       if (!timeSlot) {
         throw new Error("Time slot not found");
       }
+      
 
       if (timeSlot.status !== TimeSlotStatus.AVAILABLE) {
-        throw new Error("This time slot is no longer available");
+        // throw new Error("This time slot is no longer available");
+        res.status(400).json(new ApiError(400 , "Timeslote is already booked"));
+        return;
       }
 
       // Check if patient already has an appointment at this time
       const existingAppointment = await prisma.appointment.findFirst({
         where: {
+          status : {
+            in : [AppointmentStatus.COMPLETED , AppointmentStatus.PENDING]
+          },
           patientId : patient.id,
           timeSlot: {
-            startTime: timeSlot.startTime,
-            endTime: timeSlot.endTime,
+            startTime: { lt: timeSlot.endTime },
+            endTime: { gt: timeSlot.startTime },          
           },
         },
       });
-
+      // console.log(existingAppointment)
+      
       if (existingAppointment) {
-        throw new Error(
-          "You already have an appointment scheduled at this time"
-        );
+        res.status(400).json(new ApiError(400 , "You have already appointment in this time"));
+        return
       }
-
       // Create appointment and update time slot status
       const [appointment, updatedTimeSlot] = await Promise.all([
         prisma.appointment.create({
@@ -270,15 +275,15 @@ const bookAppointment = async (
 
     // Format the response
     const formattedAppointment = {
-      id: result.appointment.id,
-      status: result.appointment.status,
-      patientName: result.appointment.patient.user.name,
-      doctorName: result.appointment.doctor.user.name,
-      specialty: result.appointment.doctor.specialty,
-      location: result.appointment.doctor.clinicLocation,
+      id: result?.appointment.id,
+      status: result?.appointment.status,
+      patientName: result?.appointment.patient.user.name,
+      doctorName: result?.appointment.doctor.user.name,
+      specialty: result?.appointment.doctor.specialty,
+      location: result?.appointment.doctor.clinicLocation,
       appointmentTime: {
-        start: result.appointment.timeSlot.startTime,
-        end: result.appointment.timeSlot.endTime,
+        start: result?.appointment.timeSlot.startTime,
+        end: result?.appointment.timeSlot.endTime,
       },
     };
 

@@ -85,7 +85,7 @@ model Appointment {
   id              String            @id @default(uuid())
   patientId       String
   doctorId        String
-  timeSlotId      String           @unique
+  timeSlotId      String           
   status          AppointmentStatus @default(PENDING)
   notes           String?
 
@@ -94,7 +94,7 @@ model Appointment {
   doctor    Doctor    @relation("DoctorAppointments", fields: [doctorId], references: [id])
   timeSlot  TimeSlot  @relation(fields: [timeSlotId], references: [id])
 
-  @@unique([patientId, timeSlotId])
+  // @@unique([patientId, timeSlotId])
 }
 
 model Prescription {
@@ -138,7 +138,7 @@ model TimeSlot {
 
   // Relations
   doctor      Doctor      @relation(fields: [doctorId], references: [id])
-  appointment Appointment?
+  appointment Appointment[]
 
   @@unique([doctorId, startTime])
   @@index([doctorId, startTime])

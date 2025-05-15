@@ -3,6 +3,7 @@ import { UserRequest } from "../utils/helper";
 import { AppointmentStatus, PrismaClient, TimeSlotStatus } from "@prisma/client";
 import { ApiResponse } from "../utils/ApiResponse";
 import { ApiError } from "../utils/ApiError";
+import { time } from "console";
 
 const prisma = new PrismaClient();
 
@@ -39,7 +40,7 @@ const viewDoctorAppointment = async (
         },
       };
     }
-
+    
     const appointments = await prisma.appointment.findMany({
       where: filters,
       include: {
@@ -67,8 +68,8 @@ const viewDoctorAppointment = async (
       patientName: appointment.patient.user.name,
       notes: appointment.notes,
       appointmentTime: {
-        start: appointment.timeSlot.startTime,
-        end: appointment.timeSlot.endTime,
+        startTime: appointment.timeSlot.startTime,
+        endTime: appointment.timeSlot.endTime,
       },
     }));
 
@@ -209,4 +210,56 @@ const addTimeslot = async (req:UserRequest , res:Response) => {
   }
 }
 
-export { viewDoctorAppointment, updateAppointmentStatus , addTimeslot };
+const viewTimeslots = async (req : UserRequest , res:Response) => {
+  const {status , startTime , endTime} = req.query; //status = AVAILABLE,BOOKED,CANCELLED
+  const userId = req.user?.id;
+
+  try {
+    const doctor = await prisma.doctor.findUnique({
+      where : {userId}
+    });
+    if(!doctor){
+      res.status(400).json(new ApiError(400 , "Doctor not found"));
+      return;
+    }
+
+    const filters : any = {
+      doctorId : doctor.id
+    }
+    if(status && typeof status === "string"){
+      filters.status = status as TimeSlotStatus
+    }
+    if(startTime){
+      filters.startTime = { gte : startTime}
+    }
+    if(endTime){
+      filters.endTime = { lte : endTime}
+    }
+    const timeSlots = await prisma.timeSlot.findMany({
+      where : filters,
+      include : {
+        appointment : {
+          include : {
+            patient : true
+          }
+        }
+      },
+      orderBy : {
+        startTime : "asc"
+      }
+    });
+
+    res.status(200).json(new ApiResponse(200 , timeSlots));
+    return;
+  } catch (error) {
+    res.status(500).json(new ApiError(500 , "internal server error" , [error]));
+  }
+
+}
+
+export { 
+  viewDoctorAppointment,
+  updateAppointmentStatus,
+  addTimeslot,
+  viewTimeslots
+};
