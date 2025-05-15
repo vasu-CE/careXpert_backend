@@ -2,20 +2,22 @@ import { Response } from "express";
 import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import prisma from "../utils/prismClient";
-import { isValidUUID } from "../utils/helper";
-import { TimeSlotStatus,AppointmentStatus } from "@prisma/client";
+import { isValidUUID, UserRequest } from "../utils/helper";
+import { TimeSlotStatus, AppointmentStatus, Role } from "@prisma/client";
 
-
-
-const searchDoctors = async (
-  req: any,
-  res: Response
-) =>{
+const searchDoctors = async (req: any, res: Response) => {
   const { specialty, location } = req.query;
 
   // Input validation
   if (!specialty && !location) {
-    res.status(400).json(new ApiError(400 ,"At least one search parameter (specialty or location) is required"));
+    res
+      .status(400)
+      .json(
+        new ApiError(
+          400,
+          "At least one search parameter (specialty or location) is required"
+        )
+      );
     return;
   }
 
@@ -51,18 +53,14 @@ const searchDoctors = async (
       },
     });
 
-    res.status(200).json(new ApiResponse(200 , doctors));
-
+    res.status(200).json(new ApiResponse(200, doctors));
   } catch (error) {
     // console.error("Error in searchDoctors:", error);
-    res.status(500).json(new ApiError(500 , "Internal Server Error" , [error])); 
+    res.status(500).json(new ApiError(500, "Internal Server Error", [error]));
   }
 };
 
-const availableTimeSlots = async (
-  req: any,
-  res: Response
-): Promise<void> => {
+const availableTimeSlots = async (req: any, res: Response): Promise<void> => {
   const { doctorId } = req.params;
   const date = req.query.date as string | undefined;
 
@@ -149,22 +147,19 @@ const availableTimeSlots = async (
       location: slot.doctor.clinicLocation,
     }));
 
-    res.status(200).json(new ApiResponse(200,formattedSlots));
+    res.status(200).json(new ApiResponse(200, formattedSlots));
   } catch (error) {
     res.status(400).json(new ApiError(400, "Internal Server Error", [error]));
   }
 };
 
-const bookAppointment = async (
-  req: any,
-  res: Response
-): Promise<void> => {
+const bookAppointment = async (req: any, res: Response): Promise<void> => {
   const { timeSlotId } = req.body;
   // const patientId = req.user?.patient?.id; // Get patient ID from authenticated user
   const userId = req.user?.id;
   const patient = await prisma.patient.findUnique({
-    where : {userId},
-    select : { id : true}
+    where: { userId },
+    select: { id: true },
   });
 
   try {
@@ -235,7 +230,7 @@ const bookAppointment = async (
       const [appointment, updatedTimeSlot] = await Promise.all([
         prisma.appointment.create({
           data: {
-            patientId : patient.id,
+            patientId: patient.id,
             doctorId: timeSlot.doctorId,
             timeSlotId,
             status: AppointmentStatus.PENDING,
@@ -287,14 +282,12 @@ const bookAppointment = async (
       },
     };
 
-    res
-      .status(200)
-      .json(
-        new ApiResponse(200, {
-          data: formattedAppointment,
-          message: "Appointment booked successfully",
-        })
-      );
+    res.status(200).json(
+      new ApiResponse(200, {
+        data: formattedAppointment,
+        message: "Appointment booked successfully",
+      })
+    );
   } catch (error) {
     res.status(500).json(new ApiError(500, "Internal Server Error", [error]));
   }
@@ -305,25 +298,18 @@ const getPatientAppointments = async (
   req: any,
   res: Response
 ): Promise<void> => {
-  // const patientId = req.user?.patient?.id;
-  const userId = req.user?.id;
-  const patient = await prisma.patient.findUnique({
-    where : {userId},
-    select : {
-      id : true
-    }
-  });
+  const patientId = req.user?.patient?.id;
 
   try {
-    if (!patient) {
+    if (!patientId) {
       res
         .status(400)
-        .json(new ApiError(400, "Only patients can view there appointments!"));
+        .json(new ApiError(400, "Only patients can view their appointments!"));
       return;
     }
 
     const appointments = await prisma.appointment.findMany({
-      where: { patientId : patient.id},
+      where: { patientId },
       include: {
         doctor: {
           select: {
@@ -357,16 +343,120 @@ const getPatientAppointments = async (
       },
     }));
 
-    res.status(200).json( new ApiResponse(200, formattedAppointments )
-    );
+    res.status(200).json(new ApiResponse(200, formattedAppointments));
   } catch (error) {
-    res.status(500).json(new ApiError(500, "Failed to fetch appointments!",[error]));
+    res
+      .status(500)
+      .json(new ApiError(500, "Failed to fetch appointments!", [error]));
+  }
+};
+
+const cancelAppointment = async (req: UserRequest, res: any) => {
+  const { appointmentId } = req.params;
+  const patientId = req.user?.patient?.id;
+
+  try {
+    if (!patientId) {
+      res
+        .status(400)
+        .json(new ApiError(400, "Only patients can cancel Appointments!"));
+    }
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: { timeSlot: true },
+    });
+
+    if (!appointment || patientId !== appointment.patientId) {
+      res
+        .status(400)
+        .json(new ApiError(400, "Appointment not found or Unauthorized"));
+    } else if (appointment.status === AppointmentStatus.CANCELLED) {
+      res.status(400).json(new ApiError(400, "Appointment already Cancelled!"));
+    }
+
+    await prisma.$transaction([
+      prisma.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          status: AppointmentStatus.CANCELLED,
+        },
+      }),
+      prisma.timeSlot.update({
+        where: { id: appointment?.timeSlotId },
+        data: {
+          status: TimeSlotStatus.AVAILABLE,
+        },
+      }),
+    ]);
+    return res
+      .status(200)
+      .json(new ApiResponse(500, "Appointment Cancelled successfully!"));
+  } catch (error) {
+    res
+      .status(400)
+      .json(
+        new ApiError(400, "Error occured while cancelling appointment!", [
+          error,
+        ])
+      );
+  }
+};
+
+const viewPrescriptions = async (req: UserRequest, res: Response) => {
+  if (req.user?.role !== Role.PATIENT) {
+    res
+      .status(403)
+      .json(new ApiError(403, "Unauthorized: Patient access required"));
+    return;
+  }
+  const patientId = req.user.patient.id;
+
+  if (!patientId) {
+    res
+      .status(400)
+      .json(new ApiError(400, "Only patients can view appointments!"));
+  }
+  try {
+    const Prescriptions = await prisma.prescription.findMany({
+      where: { patientId },
+      include: {
+        doctor: {
+          select: {
+            specialty: true,
+            clinicLocation: true,
+            user: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+      orderBy: {
+        dateIssued: "desc",
+      },
+    });
+
+    const formatted = Prescriptions.map((p) => ({
+      id: p.id,
+      dateIssued: p.dateIssued,
+      prescriptionText: p.prescriptionText,
+      doctorName: p.doctor.user.name,
+      specialty: p.doctor.specialty,
+      clinicLocation: p.doctor.clinicLocation,
+    }));
+
+    res.status(500).json(new ApiResponse(500, formatted));
+  } catch (error) {
+    res
+      .status(400)
+      .json(new ApiError(400, "Failed to fetch appointments!", [error]));
   }
 };
 
 export {
-    searchDoctors,
-    availableTimeSlots,
-    bookAppointment,
-    getPatientAppointments
-}
+  searchDoctors,
+  availableTimeSlots,
+  bookAppointment,
+  getPatientAppointments,
+  cancelAppointment,
+  viewPrescriptions,
+};

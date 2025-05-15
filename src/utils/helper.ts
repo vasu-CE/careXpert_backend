@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { ApiError } from "./ApiError";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, User } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -17,22 +17,32 @@ export enum AppointmentStatus {
   CANCELLED = "CANCELLED",
 }
 
+type UserInContext = Pick<User, "id" | "name" | "email"> &
+  (
+    | {
+        role: Role.DOCTOR;
+        doctor: {
+          id: string;
+        };
+        patient?: never;
+      }
+    | {
+        role: Role.PATIENT;
+        patient: {
+          id: string;
+        };
+        doctor?: never;
+      }
+    | {
+        role: Role.ADMIN;
+        patient?: never;
+        doctor?: never;
+      }
+  );
+
 // Extend Express Request to include user with proper role type and relations
 export interface UserRequest extends Request {
-  user?: {
-    id: string;
-    role: Role;
-    email: string;
-    patient?: {
-      id: string;
-    } | null;
-    doctor?: {
-      id: string;
-    } | null;
-    admin?: {
-      id: string;
-    } | null;
-  };
+  user?: UserInContext;
 }
 
 export const isAdmin = (
@@ -69,7 +79,6 @@ export const isPatient = (
   res: Response,
   next: NextFunction
 ): void => {
-
   if (!req.user || req.user.role !== Role.PATIENT) {
     res
       .status(403)
