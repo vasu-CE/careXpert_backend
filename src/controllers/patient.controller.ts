@@ -198,6 +198,7 @@ const bookAppointment = async (req: any, res: Response): Promise<void> => {
      
       if (!timeSlot) {
         throw new Error("Time slot not found");
+        return;
       }
       
 
@@ -224,7 +225,7 @@ const bookAppointment = async (req: any, res: Response): Promise<void> => {
       
       if (existingAppointment) {
         res.status(400).json(new ApiError(400 , "You have already appointment in this time"));
-        return
+        return;
       }
       // Create appointment and update time slot status
       const [appointment, updatedTimeSlot] = await Promise.all([
@@ -351,7 +352,7 @@ const getPatientAppointments = async (
   }
 };
 
-const cancelAppointment = async (req: UserRequest, res: any) => {
+const cancelAppointment = async (req: UserRequest, res: Response) => {
   const { appointmentId } = req.params;
   const patientId = req.user?.patient?.id;
 
@@ -360,6 +361,7 @@ const cancelAppointment = async (req: UserRequest, res: any) => {
       res
         .status(400)
         .json(new ApiError(400, "Only patients can cancel Appointments!"));
+        return;
     }
     const appointment = await prisma.appointment.findUnique({
       where: { id: appointmentId },
@@ -370,8 +372,10 @@ const cancelAppointment = async (req: UserRequest, res: any) => {
       res
         .status(400)
         .json(new ApiError(400, "Appointment not found or Unauthorized"));
+        return;
     } else if (appointment.status === AppointmentStatus.CANCELLED) {
       res.status(400).json(new ApiError(400, "Appointment already Cancelled!"));
+      return;
     }
 
     await prisma.$transaction([
@@ -388,7 +392,7 @@ const cancelAppointment = async (req: UserRequest, res: any) => {
         },
       }),
     ]);
-    return res
+     res
       .status(200)
       .json(new ApiResponse(500, "Appointment Cancelled successfully!"));
   } catch (error) {
@@ -415,6 +419,7 @@ const viewPrescriptions = async (req: UserRequest, res: Response) => {
     res
       .status(400)
       .json(new ApiError(400, "Only patients can view appointments!"));
+      return;
   }
   try {
     const Prescriptions = await prisma.prescription.findMany({

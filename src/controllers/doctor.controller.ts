@@ -170,6 +170,7 @@ const addTimeslot = async (req: UserRequest, res: Response) => {
 
   if (isNaN(start.getTime()) || isNaN(end.getTime())) {
     res.status(400).json(new ApiError(400, "Invalid date format"));
+    return;
   }
   const totalTime = (end.getTime() - start.getTime()) / 1000 / 60 / 60;
 
@@ -225,7 +226,7 @@ const addTimeslot = async (req: UserRequest, res: Response) => {
       });
     });
 
-    res.status(200).json(new ApiResponse(200, "Timeslot added suyuccessfully"));
+    res.status(200).json(new ApiResponse(200, "Timeslot added successfully"));
   } catch (error) {
     res.status(500).json(new ApiError(500, "Internal server error", [error]));
   }
@@ -322,7 +323,6 @@ const viewTimeslots = async (req: UserRequest, res: Response) => {
     });
 
     res.status(200).json(new ApiResponse(200, timeSlots));
-    return;
   } catch (error) {
     res.status(500).json(new ApiError(500, "internal server error", [error]));
   }
@@ -332,38 +332,114 @@ const getPatientHistory = async (req: UserRequest, res: Response) => {
   const patientId = req.params;
   const user = req.user;
 
-  if(!patientId){
-     res.status(400).json(new ApiError(400,"Patient not found!"));
+  if (!patientId) {
+    res.status(400).json(new ApiError(400, "Patient not found!"));
+    return;
   }
-  if(!user?.doctor){
-      res.status(400).json(new ApiError(400,"Only doctor can get patient history!"));
+  if (!user?.doctor) {
+    res
+      .status(400)
+      .json(new ApiError(400, "Only doctor can get patient history!"));
+    return;
   }
-  try{
+  try {
     const history = await prisma.patientHistory.findMany({
-      where:{patientId},
-      include:{
-        appointment:true,
-        prescription:true,
-        doctor:{
-          select:{
-             user:{
-              select:{
-                name:true,
+      where: { patientId },
+      include: {
+        appointment: true,
+        prescription: true,
+        doctor: {
+          select: {
+            user: {
+              select: {
+                name: true,
               },
             },
-            specialty:true,
+            specialty: true,
           },
-        }
+        },
       },
-      orderBy:{dateRecorded:"desc"},
+      orderBy: { dateRecorded: "desc" },
     });
 
-    res.status(200).json(new ApiResponse(500,history));
-    }
-    catch(error){
-       res.status(500).json(new ApiError(400,"Failed to fetch patient history!"));
-    }
+    res.status(200).json(new ApiResponse(500, history));
+  } catch (error) {
+    res.status(500).json(new ApiError(400, "Failed to fetch patient history!"));
   }
+};
+
+const updateTimeSlot = async (req: UserRequest, res: Response) => {
+  const timeSlotId = req.params.timeSlotId;
+  const doctorId = req.user?.doctor?.id;
+  const { startTime, endTime, status } = req.body;
+
+  if (!doctorId) {
+    res.status(403).json(new ApiError(403, "Unauthorized:Doctor not found!"));
+    return;
+  }
+
+  try {
+    const timeSlot = await prisma.timeSlot.update({
+      where: { id: timeSlotId },
+      data: {
+        startTime: startTime ? new Date(startTime) : undefined,
+        endTime: endTime ? new Date(endTime) : undefined,
+        status: status || undefined,
+      },
+    });
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, "Time slot updated successfully!"));
+  } catch (error) {
+    res.status(500).json(new ApiError(500, "Failed to update timeslots"));
+  }
+};
+
+const deleteTimeSlot = async (req: UserRequest, res: Response) => {
+  const timeSlotID = req.params.timeSlotID;
+  const doctorId = req.user?.doctor?.id;
+
+  if (!doctorId) {
+    res
+      .status(400)
+      .json(new ApiError(400, "Only doctor can delete time slots!"));
+    return;
+  }
+
+  try {
+    const timeSlot = await prisma.timeSlot.findUnique({
+      where: { id: timeSlotID },
+      include: { appointment: true }, // Include related appointments
+    });
+
+    if (!timeSlot || timeSlot.doctorId !== doctorId) {
+      res
+        .status(404)
+        .json(new ApiError(400, "Time slot not found or unauthorized"));
+      return;
+    } else if (timeSlot.appointment.length > 0) {
+      res
+        .status(400)
+        .json(
+          new ApiError(400, "Cannot delete time slot with existing appointment")
+        );
+      return;
+    }
+
+    await prisma.timeSlot.delete({
+      where: { id: timeSlotID },
+    });
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, null, "Time slot successfully deleted!"));
+  } catch (error) {
+    res
+      .status(500)
+      .json(new ApiError(500, "Failed to delete time slot", [error]));
+  }
+};
 
 export {
   viewDoctorAppointment,
@@ -372,4 +448,6 @@ export {
   viewTimeslots,
   cancelAppointment,
   getPatientHistory,
+  updateTimeSlot,
+  deleteTimeSlot,
 };
