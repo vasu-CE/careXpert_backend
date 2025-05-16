@@ -65,7 +65,7 @@ model Doctor {
   userId         String           @unique
   specialty      String
   clinicLocation String
-  experience     String? @default("0")
+  experience     String?          @default("0")
   education      String?
   bio            String?
   appointments   Appointment[]    @relation("DoctorAppointments")
@@ -93,12 +93,11 @@ model Appointment {
   status     AppointmentStatus @default(PENDING)
   notes      String?
 
-  // Link to Patient, Doctor, and TimeSlot models
   patient  Patient  @relation("PatientAppointments", fields: [patientId], references: [id])
   doctor   Doctor   @relation("DoctorAppointments", fields: [doctorId], references: [id])
   timeSlot TimeSlot @relation(fields: [timeSlotId], references: [id])
 
-  // @@unique([patientId, timeSlotId])
+  patientHistory PatientHistory? // <- only declare the field here, no `@relation`
 }
 
 model Prescription {
@@ -108,8 +107,9 @@ model Prescription {
   dateIssued       DateTime @default(now())
   prescriptionText String
 
-  doctor  Doctor  @relation(fields: [doctorId], references: [id])
-  patient Patient @relation(fields: [patientId], references: [id])
+  doctor         Doctor          @relation(fields: [doctorId], references: [id])
+  patient        Patient         @relation(fields: [patientId], references: [id])
+  patientHistory PatientHistory?
 }
 
 model Symptom {
@@ -121,14 +121,18 @@ model Symptom {
 }
 
 model PatientHistory {
-  id           String   @id @default(uuid())
-  doctorId     String
-  patientId    String
-  notes        String
-  dateRecorded DateTime @default(now())
+  id             String   @id @default(uuid())
+  doctorId       String
+  patientId      String
+  appointmentId  String   @unique
+  prescriptionId String   @unique
+  notes          String
+  dateRecorded   DateTime @default(now())
 
-  doctor  Doctor  @relation(fields: [doctorId], references: [id])
-  patient Patient @relation(fields: [patientId], references: [id])
+  doctor       Doctor       @relation(fields: [doctorId], references: [id])
+  patient      Patient      @relation(fields: [patientId], references: [id])
+  appointment  Appointment  @relation(fields: [appointmentId], references: [id])
+  prescription Prescription @relation(fields: [prescriptionId], references: [id])
 }
 
 model TimeSlot {

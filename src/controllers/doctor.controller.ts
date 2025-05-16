@@ -1,6 +1,10 @@
 import { Response } from "express";
-import { isValidUUID, UserRequest } from "../utils/helper";
-import { AppointmentStatus, PrismaClient, TimeSlotStatus } from "@prisma/client";
+import { UserRequest } from "../utils/helper";
+import {
+  AppointmentStatus,
+  PrismaClient,
+  TimeSlotStatus,
+} from "@prisma/client";
 import { ApiResponse } from "../utils/ApiResponse";
 import { ApiError } from "../utils/ApiError";
 import { time } from "console";
@@ -40,7 +44,7 @@ const viewDoctorAppointment = async (
         },
       };
     }
-    
+
     const appointments = await prisma.appointment.findMany({
       where: filters,
       include: {
@@ -82,88 +86,104 @@ const viewDoctorAppointment = async (
 };
 
 const updateAppointmentStatus = async (req: UserRequest, res: Response) => {
-  const {id}=req.params;
-  const {status,notes,prescriptionText}=req.body;
+  const { id } = req.params;
+  const { status, notes, prescriptionText } = req.body;
 
-  if(!["COMPLETED","CANCELLED"].includes(status)){
-    res.status(400).json(new ApiError(400,"Status must be Completed or Cancelled"));
+  if (!["COMPLETED", "CANCELLED"].includes(status)) {
+    res
+      .status(400)
+      .json(new ApiError(400, "Status must be Completed or Cancelled"));
     return;
   }
-  try{
+  try {
     const appointment = await prisma.appointment.findUnique({
-      where:{id},
-      include:{
-        timeSlot:true,
-        patient:true,
-        doctor:true,
-      }
-    })
-    if(!appointment){
-        res.status(400).json(new ApiError(400,"Appointment not found!"));
-        return;
-    }
-    const updatedAppointment = await prisma.appointment.update({
-      where:{id},
-      data:{
-        status:status as AppointmentStatus,
-        notes: notes||undefined
+      where: { id },
+      include: {
+        timeSlot: true,
+        patient: true,
+        doctor: true,
       },
     });
-    if(status==="CANCELLED"){
+    if (!appointment) {
+      res.status(400).json(new ApiError(400, "Appointment not found!"));
+      return;
+    }
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id },
+      data: {
+        status: status as AppointmentStatus,
+        notes: notes || undefined,
+      },
+    });
+    if (status === "CANCELLED") {
       await prisma.timeSlot.update({
-        where:{id:appointment.timeSlotId},
-        data:{
-          status:TimeSlotStatus.AVAILABLE
+        where: { id: appointment.timeSlotId },
+        data: {
+          status: TimeSlotStatus.AVAILABLE,
         },
       });
     }
-    if(status==="COMPLETED"&&prescriptionText){
-      await prisma.prescription.create({
-        data:{
-          doctorId:appointment.doctorId,
-          patientId:appointment.patientId,
-          prescriptionText:prescriptionText
+    if (status === "COMPLETED" && prescriptionText) {
+      const prescription = await prisma.prescription.create({
+        data: {
+          doctorId: appointment.doctorId,
+          patientId: appointment.patientId,
+          prescriptionText: prescriptionText,
+        },
+      });
+      await prisma.patientHistory.create({
+        data: {
+          patientId: appointment.patientId,
+          doctorId: appointment.doctorId,
+          prescriptionId: prescription.id,
+          appointmentId: appointment.id,
+          notes: notes || "",
+          dateRecorded: new Date(),
         },
       });
     }
-     res
+    res
       .status(200)
       .json(
-        new ApiResponse(200, updatedAppointment, "Appointment updated successfully")
+        new ApiResponse(
+          200,
+          updatedAppointment,
+          "Appointment updated successfully"
+        )
       );
-  }
-  catch (error) {
+  } catch (error) {
     res
       .status(500)
       .json(new ApiError(500, "Failed to update appointment", [error]));
   }
 };
 
-const addTimeslot = async (req:UserRequest , res:Response) => {
-  const {startTime , endTime} = req.body;
-  if(!startTime || !endTime){
-    res.status(400).json(new ApiError(400 , "Start and end time required"));
+const addTimeslot = async (req: UserRequest, res: Response) => {
+  const { startTime, endTime } = req.body;
+  if (!startTime || !endTime) {
+    res.status(400).json(new ApiError(400, "Start and end time required"));
     return;
   }
 
   const start = new Date(startTime);
   const end = new Date(endTime);
 
-  if(isNaN(start.getTime()) || isNaN(end.getTime())){
-    res.status(400).json(new ApiError(400 , "Invalid date format"));
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    res.status(400).json(new ApiError(400, "Invalid date format"));
   }
   const totalTime = (end.getTime() - start.getTime()) / 1000 / 60 / 60;
 
-  if(totalTime > 3 || totalTime < 0){
-    res.status(400).json(new ApiResponse(400 , "Time slot must be between 0 to 3 hours"));
+  if (totalTime > 3 || totalTime < 0) {
+    res
+      .status(400)
+      .json(new ApiResponse(400, "Time slot must be between 0 to 3 hours"));
     return;
   }
   try {
-
     const userId = req.user?.id;
     const doctor = await prisma.doctor.findUnique({
-      where : {userId},
-      select : {id : true}
+      where: { userId },
+      select: { id: true },
     });
 
     if (!doctor) {
@@ -172,138 +192,184 @@ const addTimeslot = async (req:UserRequest , res:Response) => {
     }
 
     const existingTimeslot = await prisma.timeSlot.findFirst({
-      where : {
-        doctorId : doctor.id,
-        startTime : {lt : end},
-        endTime : {gt : start}
+      where: {
+        doctorId: doctor.id,
+        startTime: { lt: end },
+        endTime: { gt: start },
       },
-      select : {id : true}
+      select: { id: true },
     });
 
-    if(existingTimeslot){
-      res.status(400).json(new ApiError(400 , "Timeslot overlap with the existing timeslot"));
+    if (existingTimeslot) {
+      res
+        .status(400)
+        .json(new ApiError(400, "Timeslot overlap with the existing timeslot"));
       return;
     }
 
     await prisma.$transaction(async (prisma) => {
       const timeSlot = await prisma.timeSlot.create({
-        data : {
-          doctorId : doctor.id,
+        data: {
+          doctorId: doctor.id,
           startTime,
           endTime,
-        }
+        },
       });
       await prisma.doctor.update({
-        where : {id : doctor.id},
-        data : {
-          timeSlots : {
-            connect : {id : timeSlot.id}
-          }
-        }
-      })
-    })
-
-    res.status(200).json(new ApiResponse(200, "Timeslot added suyuccessfully"));
-
-  } catch (error) {
-    res.status(500).json(new ApiError(500 , "Internal server error" , [error]));
-  }
-}
-
-const cancelAppointment= async(req:UserRequest,res:any)=>{
-    const {appointmentId}= req.params;
-  const doctorId = req.user?.doctor?.id;
-
-  try{
-    if(!doctorId){
-      res.status(400).json(new ApiError(400,"Only doctor can cancel Appointments!"));
-    }
-    const appointment = await prisma.appointment.findUnique({
-      where:{id:appointmentId},
-      include:{timeSlot:true}
+        where: { id: doctor.id },
+        data: {
+          timeSlots: {
+            connect: { id: timeSlot.id },
+          },
+        },
+      });
     });
 
-    if(!appointment||doctorId!==appointment.doctorId){
-      res.status(400).json(new ApiError(400,"Appointment not found or Unauthorized"));
-    }
+    res.status(200).json(new ApiResponse(200, "Timeslot added suyuccessfully"));
+  } catch (error) {
+    res.status(500).json(new ApiError(500, "Internal server error", [error]));
+  }
+};
 
-    else if (appointment.status === AppointmentStatus.CANCELLED) {
-      res.status(400).json(new ApiError(400,"Appointment already Cancelled!"));
+const cancelAppointment = async (req: UserRequest, res: any) => {
+  const { appointmentId } = req.params;
+  const doctorId = req.user?.doctor?.id;
+
+  try {
+    if (!doctorId) {
+      res
+        .status(400)
+        .json(new ApiError(400, "Only doctor can cancel Appointments!"));
+    }
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: { timeSlot: true },
+    });
+
+    if (!appointment || doctorId !== appointment.doctorId) {
+      res
+        .status(400)
+        .json(new ApiError(400, "Appointment not found or Unauthorized"));
+    } else if (appointment.status === AppointmentStatus.CANCELLED) {
+      res.status(400).json(new ApiError(400, "Appointment already Cancelled!"));
     }
 
     await prisma.$transaction([
       prisma.appointment.update({
-        where:{id:appointmentId},
-        data:{
-          status:AppointmentStatus.CANCELLED,
+        where: { id: appointmentId },
+        data: {
+          status: AppointmentStatus.CANCELLED,
         },
       }),
       prisma.timeSlot.update({
-        where:{id:appointment?.timeSlotId},
-        data:{
-          status:TimeSlotStatus.AVAILABLE,
+        where: { id: appointment?.timeSlotId },
+        data: {
+          status: TimeSlotStatus.AVAILABLE,
         },
       }),
-    ])
-      return res.status(200).json(new ApiResponse(500,"Appointment Cancelled successfully!"));
+    ]);
+    return res
+      .status(200)
+      .json(new ApiResponse(500, "Appointment Cancelled successfully!"));
+  } catch (error) {
+    res
+      .status(500)
+      .json(
+        new ApiError(500, "Error occured while cancelling appointment!", [
+          error,
+        ])
+      );
   }
-  catch(error){
-    res.status(400).json(new ApiError(400,"Error occured while cancelling appointment!",[error]));
-  }
+};
 
-}
-
-const viewTimeslots = async (req : UserRequest , res:Response) => {
-  const {status , startTime , endTime} = req.query; //status = AVAILABLE,BOOKED,CANCELLED
+const viewTimeslots = async (req: UserRequest, res: Response) => {
+  const { status, startTime, endTime } = req.query; //status = AVAILABLE,BOOKED,CANCELLED
   const userId = req.user?.id;
 
   try {
     const doctor = await prisma.doctor.findUnique({
-      where : {userId}
+      where: { userId },
     });
-    if(!doctor){
-      res.status(400).json(new ApiError(400 , "Doctor not found"));
+    if (!doctor) {
+      res.status(400).json(new ApiError(400, "Doctor not found"));
       return;
     }
 
-    const filters : any = {
-      doctorId : doctor.id
+    const filters: any = {
+      doctorId: doctor.id,
+    };
+    if (status && typeof status === "string") {
+      filters.status = status as TimeSlotStatus;
     }
-    if(status && typeof status === "string"){
-      filters.status = status as TimeSlotStatus
+    if (startTime) {
+      filters.startTime = { gte: startTime };
     }
-    if(startTime){
-      filters.startTime = { gte : startTime}
-    }
-    if(endTime){
-      filters.endTime = { lte : endTime}
+    if (endTime) {
+      filters.endTime = { lte: endTime };
     }
     const timeSlots = await prisma.timeSlot.findMany({
-      where : filters,
-      include : {
-        appointment : {
-          include : {
-            patient : true
-          }
-        }
+      where: filters,
+      include: {
+        appointment: {
+          include: {
+            patient: true,
+          },
+        },
       },
-      orderBy : {
-        startTime : "asc"
-      }
+      orderBy: {
+        startTime: "asc",
+      },
     });
 
-    res.status(200).json(new ApiResponse(200 , timeSlots));
+    res.status(200).json(new ApiResponse(200, timeSlots));
     return;
   } catch (error) {
-    res.status(500).json(new ApiError(500 , "internal server error" , [error]));
+    res.status(500).json(new ApiError(500, "internal server error", [error]));
+  }
+};
+
+const getPatientHistory = async (req: UserRequest, res: Response) => {
+  const patientId = req.params;
+  const user = req.user;
+
+  if(!patientId){
+     res.status(400).json(new ApiError(400,"Patient not found!"));
+  }
+  if(!user?.doctor){
+      res.status(400).json(new ApiError(400,"Only doctor can get patient history!"));
+  }
+  try{
+    const history = await prisma.patientHistory.findMany({
+      where:{patientId},
+      include:{
+        appointment:true,
+        prescription:true,
+        doctor:{
+          select:{
+             user:{
+              select:{
+                name:true,
+              },
+            },
+            specialty:true,
+          },
+        }
+      },
+      orderBy:{dateRecorded:"desc"},
+    });
+
+    res.status(200).json(new ApiResponse(500,history));
+    }
+    catch(error){
+       res.status(500).json(new ApiError(400,"Failed to fetch patient history!"));
+    }
   }
 
-}
-
-export { 
+export {
   viewDoctorAppointment,
   updateAppointmentStatus,
   addTimeslot,
   viewTimeslots,
-  cancelAppointment
+  cancelAppointment,
+  getPatientHistory,
 };
