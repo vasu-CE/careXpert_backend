@@ -1,6 +1,8 @@
 import express from 'express'
-import { doctorProfile, login, logout, signup, userProfile } from '../controllers/user.controller';
+import { doctorProfile, login, logout, signup, updateDoctorProfile, updatePatientProfile, userProfile } from '../controllers/user.controller';
 import { isAuthenticated } from '../middlewares/auth.middleware';
+import { isDoctor, isPatient } from '../utils/helper';
+import upload from '../middlewares/upload';
 
 
 
@@ -14,4 +16,6 @@ router.post('/logout' , isAuthenticated , logout);
 router.get("/patient/profile/:id" , isAuthenticated , userProfile);
 router.get("/doctor/profile/:id" , isAuthenticated , doctorProfile);
 
+router.put('/update-patient' , isAuthenticated , isPatient ,upload.single('profilePicture') , updatePatientProfile);
+router.put('/update-doctor' , isAuthenticated , isDoctor , upload.single('profilePicture') ,updateDoctorProfile)
 export default router;

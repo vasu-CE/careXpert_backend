@@ -72,6 +72,7 @@ const signup = async (req:UserRequest , res:any)  => {
                     email,
                     password : hashedPassword,
                     role,
+                    profilePicture:"https://res.cloudinary.com/de930by1y/image/upload/v1747403920/careXpert_profile_pictures/kxwsom57lcjamzpfjdod.jpg"
                 }
             });
 
@@ -232,10 +233,91 @@ const userProfile = async (req:UserRequest , res:Response) => {
   }
 }
 
+const updatePatientProfile = async(req : any , res:Response) => {
+    try {
+        const id = req.user?.id;
+        const {name} = req.body; 
+        const imageUrl = req.file?.path;
+
+        const dataToUpdate : {name? : string , profilePicture? : string} = {};
+        if(name) dataToUpdate.name = name;
+        if(imageUrl) dataToUpdate.profilePicture = imageUrl;
+        
+        const user = await prisma.user.update({
+            where : {id},
+            data : dataToUpdate,
+            select : {
+                name : true,
+                email : true,
+                profilePicture : true,
+                role : true,
+                refreshToken : true,
+                createdAt : true
+            }
+        });
+
+        res.status(200).json(new ApiResponse(200 , user , "Profile updated successfulyy"));
+        return;
+    } catch (error) {
+        res.status(500).json(new ApiError(500 , "Internal server error" , [error]));
+    }
+}
+
+const updateDoctorProfile = async (req : any , res:Response) => {
+    try {
+        let id = req.user?.doctor?.id;
+        const {specialty , clinicLocation , experience , bio , name } = req.body;
+        const imageUrl = req.file?.path;
+
+        const doctorData : {
+            specialty? : string,
+            clinicLocation? : string,
+            experience? : string,
+            bio? : string,
+        } = {};
+        if(specialty) doctorData.specialty = specialty;
+        if(clinicLocation) doctorData.clinicLocation = clinicLocation;
+        if(experience) doctorData.experience = experience;
+        if(bio) doctorData.bio = bio;
+
+        const doctor = await prisma.doctor.update({
+            where : {id},
+            data : doctorData
+        });
+
+        const userData : {name? : string , profilePicture? : string} = {};
+        if(name) userData.name = name;
+        if(imageUrl) userData.profilePicture = imageUrl;
+
+        id = doctor.userId;
+        const user = await prisma.user.update({
+            where : {id},
+            data : userData,
+            select : {
+                name : true,
+                email : true,
+                profilePicture : true,
+                role : true,
+                refreshToken : true,
+                createdAt : true,
+                doctor : true
+            }
+        });
+
+        res.status(200).json(new ApiResponse(200 , user , "profile updated successfulyy"));
+        return;
+    } catch (error) {
+        res.status(500).json(new ApiError(500 , "Internal server error" , [error]));
+        return;
+    }
+}
+
 export {
     signup,
     login,
     logout,
     doctorProfile,
-    userProfile
+    userProfile,
+    updatePatientProfile,
+    updateDoctorProfile
 }
