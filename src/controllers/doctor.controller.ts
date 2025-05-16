@@ -379,7 +379,7 @@ const updateTimeSlot = async (req: UserRequest, res: Response) => {
   }
 
   try {
-    const timeSlot = await prisma.timeSlot.update({
+    await prisma.timeSlot.update({
       where: { id: timeSlotId },
       data: {
         startTime: startTime ? new Date(startTime) : undefined,
@@ -433,7 +433,7 @@ const deleteTimeSlot = async (req: UserRequest, res: Response) => {
 
     res
       .status(200)
-      .json(new ApiResponse(200, null, "Time slot successfully deleted!"));
+      .json(new ApiResponse(200, "Time slot successfully deleted!"));
   } catch (error) {
     res
       .status(500)

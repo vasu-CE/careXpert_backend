@@ -195,36 +195,40 @@ const bookAppointment = async (req: any, res: Response): Promise<void> => {
           },
         },
       });
-     
+
       if (!timeSlot) {
-        throw new Error("Time slot not found");
+        res.status(404).json({
+          success: false,
+          message: "Time slot not found",
+        });
         return;
       }
-      
 
       if (timeSlot.status !== TimeSlotStatus.AVAILABLE) {
         // throw new Error("This time slot is no longer available");
-        res.status(400).json(new ApiError(400 , "Timeslote is already booked"));
+        res.status(400).json(new ApiError(400, "Timeslote is already booked"));
         return;
       }
 
       // Check if patient already has an appointment at this time
       const existingAppointment = await prisma.appointment.findFirst({
         where: {
-          status : {
-            in : [AppointmentStatus.COMPLETED , AppointmentStatus.PENDING]
+          status: {
+            in: [AppointmentStatus.COMPLETED, AppointmentStatus.PENDING],
           },
-          patientId : patient.id,
+          patientId: patient.id,
           timeSlot: {
             startTime: { lt: timeSlot.endTime },
-            endTime: { gt: timeSlot.startTime },          
+            endTime: { gt: timeSlot.startTime },
           },
         },
       });
       // console.log(existingAppointment)
-      
+
       if (existingAppointment) {
-        res.status(400).json(new ApiError(400 , "You have already appointment in this time"));
+        res
+          .status(400)
+          .json(new ApiError(400, "You have already appointment in this time"));
         return;
       }
       // Create appointment and update time slot status
@@ -361,7 +365,7 @@ const cancelAppointment = async (req: UserRequest, res: Response) => {
       res
         .status(400)
         .json(new ApiError(400, "Only patients can cancel Appointments!"));
-        return;
+      return;
     }
     const appointment = await prisma.appointment.findUnique({
       where: { id: appointmentId },
@@ -372,7 +376,7 @@ const cancelAppointment = async (req: UserRequest, res: Response) => {
       res
         .status(400)
         .json(new ApiError(400, "Appointment not found or Unauthorized"));
-        return;
+      return;
     } else if (appointment.status === AppointmentStatus.CANCELLED) {
       res.status(400).json(new ApiError(400, "Appointment already Cancelled!"));
       return;
@@ -392,7 +396,7 @@ const cancelAppointment = async (req: UserRequest, res: Response) => {
         },
       }),
     ]);
-     res
+    res
       .status(200)
       .json(new ApiResponse(500, "Appointment Cancelled successfully!"));
   } catch (error) {
@@ -407,19 +411,13 @@ const cancelAppointment = async (req: UserRequest, res: Response) => {
 };
 
 const viewPrescriptions = async (req: UserRequest, res: Response) => {
-  if (req.user?.role !== Role.PATIENT) {
-    res
-      .status(403)
-      .json(new ApiError(403, "Unauthorized: Patient access required"));
-    return;
-  }
-  const patientId = req.user.patient.id;
+  const patientId = req.user?.patient?.id;
 
   if (!patientId) {
     res
       .status(400)
       .json(new ApiError(400, "Only patients can view appointments!"));
-      return;
+    return;
   }
   try {
     const Prescriptions = await prisma.prescription.findMany({
