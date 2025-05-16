@@ -1,5 +1,5 @@
 import { Response } from "express";
-import { UserRequest } from "../utils/helper";
+import { isValidUUID, UserRequest } from "../utils/helper";
 import { AppointmentStatus, PrismaClient, TimeSlotStatus } from "@prisma/client";
 import { ApiResponse } from "../utils/ApiResponse";
 import { ApiError } from "../utils/ApiError";
@@ -304,5 +304,6 @@ export {
   viewDoctorAppointment,
   updateAppointmentStatus,
   addTimeslot,
-  viewTimeslots
-, cancelAppointment };
+  viewTimeslots,
+  cancelAppointment
+};

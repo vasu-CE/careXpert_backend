@@ -5,7 +5,6 @@ import { isAuthenticated } from "../middlewares/auth.middleware";
 
 const router = Router();
 
-
 router.post("/add-timeslot" , isAuthenticated , isDoctor , addTimeslot);
 router.get("/view-timeslots" , isAuthenticated , isDoctor , viewTimeslots);
 

@@ -444,11 +444,11 @@ const viewPrescriptions = async (req: UserRequest, res: Response) => {
       clinicLocation: p.doctor.clinicLocation,
     }));
 
-    res.status(500).json(new ApiResponse(500, formatted));
+    res.status(200).json(new ApiResponse(200, formatted));
   } catch (error) {
     res
-      .status(400)
-      .json(new ApiError(400, "Failed to fetch appointments!", [error]));
+      .status(500)
+      .json(new ApiError(500, "Failed to fetch appointments!", [error]));
   }
 };
 

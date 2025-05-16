@@ -32,14 +32,15 @@ enum TimeSlotStatus {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String   @unique
-  password     String
-  role         Role     @default(PATIENT)
-  refreshToken String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(uuid())
+  name           String
+  email          String   @unique
+  profilePicture String?
+  password       String
+  role           Role     @default(PATIENT)
+  refreshToken   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Role-specific relations
   patient Patient? @relation("PatientUser")
@@ -64,6 +65,9 @@ model Doctor {
   userId         String           @unique
   specialty      String
   clinicLocation String
+  experience     String? @default("0")
+  education      String?
+  bio            String?
   appointments   Appointment[]    @relation("DoctorAppointments")
   prescriptions  Prescription[]
   patientHistory PatientHistory[]
@@ -82,17 +86,17 @@ model Admin {
 }
 
 model Appointment {
-  id              String            @id @default(uuid())
-  patientId       String
-  doctorId        String
-  timeSlotId      String           
-  status          AppointmentStatus @default(PENDING)
-  notes           String?
+  id         String            @id @default(uuid())
+  patientId  String
+  doctorId   String
+  timeSlotId String
+  status     AppointmentStatus @default(PENDING)
+  notes      String?
 
   // Link to Patient, Doctor, and TimeSlot models
-  patient   Patient   @relation("PatientAppointments", fields: [patientId], references: [id])
-  doctor    Doctor    @relation("DoctorAppointments", fields: [doctorId], references: [id])
-  timeSlot  TimeSlot  @relation(fields: [timeSlotId], references: [id])
+  patient  Patient  @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor   Doctor   @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  timeSlot TimeSlot @relation(fields: [timeSlotId], references: [id])
 
   // @@unique([patientId, timeSlotId])
 }
@@ -128,16 +132,16 @@ model PatientHistory {
 }
 
 model TimeSlot {
-  id          String         @id @default(uuid())
-  doctorId    String
-  startTime   DateTime
-  endTime     DateTime
-  status      TimeSlotStatus @default(AVAILABLE)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id        String         @id @default(uuid())
+  doctorId  String
+  startTime DateTime
+  endTime   DateTime
+  status    TimeSlotStatus @default(AVAILABLE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 
   // Relations
-  doctor      Doctor      @relation(fields: [doctorId], references: [id])
+  doctor      Doctor        @relation(fields: [doctorId], references: [id])
   appointment Appointment[]
 
   @@unique([doctorId, startTime])

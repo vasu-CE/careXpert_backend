@@ -171,12 +171,71 @@ const logout = async (req:any , res:any) => {
     }
 }
 
+const doctorProfile = async (req:UserRequest , res:Response) => {
+  try {
+    const {id} = req.params;
 
+    if(!id || !isValidUUID(id)){
+      res.status(400).json(new ApiError(400 , "Doctor id not found"));
+    }
+  
+    const doctor = await prisma.doctor.findUnique({
+      where : {id},
+      include : {
+        user : {
+          select : {
+            name : true,
+            email : true,
+            profilePicture : true,
+            refreshToken : true,
+            createdAt : true
+          }
+        }
+      }
+    });
 
+    res.status(200).json(new ApiResponse(200 ,doctor));
+  } catch (error) {
+    res.status(500).json(new ApiError(500 , "internal server error" , [error]));
+    return;
+  }
+}
 
+const userProfile = async (req:UserRequest , res:Response) => {
+  try {
+    const {id} = req.params;
+
+    if(!id || !isValidUUID(id)){
+      res.status(400).json(new ApiError(400 , "patient id no valid"));
+    }
+
+    const patient = await prisma.patient.findUnique({
+      where : {id},
+      include : {
+        user :{
+          select : {
+            name : true,
+            email : true,
+            profilePicture : true,
+            refreshToken : true,
+            createdAt : true
+          }
+        }
+      }
+    });
+
+    res.status(200).json(new ApiResponse(200 , patient));
+    return;
+  } catch (error) {
+    res.status(500).json(new ApiError(500 , "Internal server error" , [error]));
+    return;
+  }
+}
 
 export {
     signup,
     login,
-    logout
+    logout,
+    doctorProfile,
+    userProfile
 }
