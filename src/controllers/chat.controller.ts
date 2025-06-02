@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 // Controller to get messages for a room (city chat)
-export const getRoomMessages = async (req: Request, res: Response) => {
+export const getRoomMessages = async (req: Request, res: any) => {
   try {
     const { city } = req.params;
 
@@ -43,7 +43,7 @@ export const getRoomMessages = async (req: Request, res: Response) => {
 };
 
 // Controller to get messages for a direct message chat
-export const getDmMessages = async (req: Request, res: Response) => {
+export const getDmMessages = async (req: Request, res: any) => {
   try {
     const { roomId } = req.params;
     // You might also want to validate that the requesting user is part of this DM conversation
