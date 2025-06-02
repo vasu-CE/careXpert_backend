@@ -14,7 +14,7 @@ router.get("/my-appointments",isAuthenticated,isPatient,getPatientAppointments);
 router.patch("/cancel-appointment/:appointmentId",isAuthenticated,isPatient,cancelAppointment);
 
 router.get("/view-Prescriptions",isAuthenticated,isPatient,viewPrescriptions);
-router.get("/prescription-pdf/:id" , isAuthenticated , isPatient , prescriptionPdf)
+router.get("/prescription-pdf/:id" , prescriptionPdf)
 
 
 export default router;
