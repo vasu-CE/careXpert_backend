@@ -455,6 +455,49 @@ const viewPrescriptions = async (req: UserRequest, res: Response) => {
   }
 };
 
+const prescriptionPdf = async (req: UserRequest, res: Response) => {
+  try {
+    const prescriptionId = req.params.id as string;
+
+    if(!prescriptionId || !isValidUUID(prescriptionId)){
+      res.status(400).json(new ApiResponse(400 , "Invalid prescription id"));
+      return;
+    }
+    
+    const prescription = await prisma.prescription.findUnique({
+      where: { id: prescriptionId },
+      include : {
+        patient : {
+          select : {
+            user : {
+              select : {
+                name : true,
+                email : true,  
+              }
+            }
+          }
+        },
+        doctor : {
+          select : {
+            specialty : true,
+            clinicLocation : true,
+            user : {
+              select : {
+                name : true,
+                email : true
+              }
+            }
+          },
+        }
+      }
+    })
+
+    res.status(200).json(new ApiResponse(200 , prescription));
+  } catch (error) {
+    res.status(500).json(new ApiError(500 , "internal server error" , [error]));
+  }
+}
+
 export {
   searchDoctors,
   availableTimeSlots,
@@ -462,4 +505,5 @@ export {
   getPatientAppointments,
   cancelAppointment,
   viewPrescriptions,
+  prescriptionPdf
 };
