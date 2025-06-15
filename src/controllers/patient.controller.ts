@@ -4,22 +4,24 @@ import { ApiResponse } from "../utils/ApiResponse";
 import prisma from "../utils/prismClient";
 import { isValidUUID, UserRequest } from "../utils/helper";
 import { TimeSlotStatus, AppointmentStatus, Role } from "@prisma/client";
+import PDFDocument from 'pdfkit';
+import fs from 'fs'; 
 
 const searchDoctors = async (req: any, res: Response) => {
   const { specialty, location } = req.query;
 
   // Input validation
-  if (!specialty && !location) {
-    res
-      .status(400)
-      .json(
-        new ApiError(
-          400,
-          "At least one search parameter (specialty or location) is required"
-        )
-      );
-    return;
-  }
+  // if (!specialty && !location) {
+  //   res
+  //     .status(400)
+  //     .json(
+  //       new ApiError(
+  //         400,
+  //         "At least one search parameter (specialty or location) is required"
+  //       )
+  //     );
+  //   return;
+  // }
 
   try {
     const doctors = await prisma.doctor.findMany({
@@ -48,6 +50,7 @@ const searchDoctors = async (req: any, res: Response) => {
           select: {
             name: true,
             email: true,
+            profilePicture : true
           },
         },
       },
@@ -298,8 +301,8 @@ const bookAppointment = async (req: any, res: Response): Promise<void> => {
   }
 };
 
-// Get patient's appointments
-const getPatientAppointments = async (
+
+const getUpcomingAppointments = async (
   req: any,
   res: Response
 ): Promise<void> => {
@@ -314,13 +317,21 @@ const getPatientAppointments = async (
     }
 
     const appointments = await prisma.appointment.findMany({
-      where: { patientId },
+      where: { 
+        patientId,
+        timeSlot : {
+          startTime : {
+            gte : new Date()
+          }
+        }
+      },
       include: {
         doctor: {
           select: {
             user: {
               select: {
                 name: true,
+                profilePicture : true
               },
             },
             specialty: true,
@@ -340,6 +351,73 @@ const getPatientAppointments = async (
       id: appointment.id,
       status: appointment.status,
       doctorName: appointment.doctor.user.name,
+      profilePicture : appointment.doctor.user.profilePicture,
+      specialty: appointment.doctor.specialty,
+      location: appointment.doctor.clinicLocation,
+      appointmentTime: {
+        start: appointment.timeSlot.startTime,
+        end: appointment.timeSlot.endTime,
+      },
+    }));
+
+    res.status(200).json(new ApiResponse(200, formattedAppointments));
+  } catch (error) {
+    res
+      .status(500)
+      .json(new ApiError(500, "Failed to fetch appointments!", [error]));
+  }
+};
+
+const getPastAppointments = async (
+  req: any,
+  res: Response
+): Promise<void> => {
+  const patientId = req.user?.patient?.id;
+
+  try {
+    if (!patientId) {
+      res
+        .status(400)
+        .json(new ApiError(400, "Only patients can view their appointments!"));
+      return;
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where: { 
+        patientId,
+        timeSlot : {
+          startTime : {
+            lt : new Date()
+          }
+        }
+      },
+      include: {
+        doctor: {
+          select: {
+            user: {
+              select: {
+                name: true,
+                profilePicture : true
+              },
+            },
+            specialty: true,
+            clinicLocation: true,
+          },
+        },
+        timeSlot: true,
+      },
+      orderBy: {
+        timeSlot: {
+          startTime: "asc",
+        },
+      },
+    });
+
+    const formattedAppointments = appointments.map((appointment) => ({
+      id: appointment.id,
+      status: appointment.status,
+      doctorName: appointment.doctor.user.name,
+      profilePicture : appointment.doctor.user.profilePicture,
       specialty: appointment.doctor.specialty,
       location: appointment.doctor.clinicLocation,
       appointmentTime: {
@@ -440,7 +518,7 @@ const viewPrescriptions = async (req: UserRequest, res: Response) => {
 
     const formatted = Prescriptions.map((p) => ({
       id: p.id,
-      dateIssued: p.dateIssued,
+      date: p.dateIssued,
       prescriptionText: p.prescriptionText,
       doctorName: p.doctor.user.name,
       specialty: p.doctor.specialty,
@@ -454,6 +532,22 @@ const viewPrescriptions = async (req: UserRequest, res: Response) => {
       .json(new ApiError(500, "Failed to fetch appointments!", [error]));
   }
 };
+
+function drawHorizontalLine(
+  doc: PDFKit.PDFDocument,
+  y: number,
+  color: string = '#cccccc'
+): void {
+  doc
+    .save() 
+    .strokeColor(color)
+    .lineWidth(0.5)
+    .moveTo(40, y)
+    .lineTo(doc.page.width - 40, y)
+    .stroke()
+    .restore();
+}
+
 
 const prescriptionPdf = async (req: UserRequest, res: Response) => {
   try {
@@ -492,7 +586,165 @@ const prescriptionPdf = async (req: UserRequest, res: Response) => {
       }
     })
 
-    res.status(200).json(new ApiResponse(200 , prescription));
+    if(!prescription){
+      res.status(404).json(new ApiResponse(404 , "Prescription not found"));
+      return;
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=prescription_${prescriptionId}.pdf`);
+
+    const doc = new PDFDocument({
+      size: 'A5',
+      margins: { top: 40, bottom: 60, left: 40, right: 40 },
+    });
+
+    doc.pipe(res);
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(22)
+      .fillColor('#333333')
+      .text('PRESCRIPTION', { align: 'center', underline: false });
+    
+    drawHorizontalLine(doc, 100, '#999999');
+    doc.moveDown(2);
+ 
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .fillColor('#000000')
+      .text('Doctor Information:', { continued: false });
+    doc.moveDown(0.5);
+
+    // Doctor Name + Specialty
+    doc
+      .font('Helvetica')
+      .fontSize(11)
+      .text(`Name       : Dr. ${prescription.doctor.user.name}`, {
+        indent: 10,
+      });
+    doc.text(`Specialty  : ${prescription.doctor.specialty}`, {
+      indent: 10,
+    });
+    doc.text(`Clinic        : ${prescription.doctor.clinicLocation}`, {
+      indent: 10,
+    });
+    doc.text(`Email        : ${prescription.doctor.user.email}`, {
+      indent: 10,
+    });
+
+    doc.moveDown(1);
+
+    // ------------------------
+    // 3) Patient Section
+    // ------------------------
+    drawHorizontalLine(doc, doc.y, '#dddddd');
+    doc.moveDown(0.5);
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .fillColor('#000000')
+      .text('Patient Information:');
+    doc.moveDown(0.5);
+
+    doc
+      .font('Helvetica')
+      .fontSize(11)
+      .text(`Name  : ${prescription.patient.user.name}`, {
+        indent: 10,
+      });
+    doc.text(`Email : ${prescription.patient.user.email}`, {
+      indent: 10,
+    });
+
+    doc.moveDown(1);
+
+    // ------------------------
+    // 4) Date Issued & Prescription Text
+    // ------------------------
+    drawHorizontalLine(doc, doc.y, '#dddddd');
+    doc.moveDown(0.5);
+
+    // Date Issued
+    const formattedDate = new Date(prescription.dateIssued).toLocaleDateString(
+      'en-IN',
+      { day: '2-digit', month: 'long', year: 'numeric' }
+    );
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .fillColor('#000000')
+      .text(`Date Issued: `, { continued: true })
+      .font('Helvetica')
+      .text(formattedDate);
+
+    doc.moveDown(1);
+
+    // Prescription Details Heading
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .text('Prescription Details:');
+    doc.moveDown(0.5);
+
+    // Prescription Text Box (bordered)
+    const startX = doc.x;
+    const boxWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const textOptions: PDFKit.Mixins.TextOptions = {
+      width: boxWidth - 10,
+      align: 'left',
+      indent: 5,
+      lineGap: 4,
+    };
+
+    // Draw a light gray box background
+    const boxTop = doc.y;
+    const estimatedHeight = doc.heightOfString(
+      prescription.prescriptionText,
+      textOptions
+    ) + 20;
+    doc
+      .save()
+      .rect(startX - 5, boxTop - 5, boxWidth + 10, estimatedHeight + 10)
+      .fillOpacity(0.05)
+      .fill('#cccccc')
+      .restore();
+
+    // Write the prescription text inside the box
+    doc
+      .font('Helvetica')
+      .fontSize(11)
+      .fillColor('#000000')
+      .text(prescription.prescriptionText, startX, boxTop, textOptions);
+
+    // Move to end of box
+    doc.moveDown(2);
+
+    const footerY = doc.page.height - doc.page.margins.bottom - 40;
+    doc
+    .font('Helvetica')
+    .fontSize(9)
+    .fillColor('#666666')
+    .text(
+      `Generated on ${new Date().toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`,
+      40,
+      footerY,
+      { align: 'left' }
+    );
+  
+  doc.text('Powered by CareXpert', 40, footerY + 15, {
+    align: 'left',
+  });
+    doc.end();
+
   } catch (error) {
     res.status(500).json(new ApiError(500 , "internal server error" , [error]));
   }
@@ -502,7 +754,8 @@ export {
   searchDoctors,
   availableTimeSlots,
   bookAppointment,
-  getPatientAppointments,
+  getUpcomingAppointments,
+  getPastAppointments,
   cancelAppointment,
   viewPrescriptions,
   prescriptionPdf

@@ -10,31 +10,31 @@ import { hash } from "crypto";
 import { isValidUUID } from "../utils/helper";
 import { TimeSlotStatus, AppointmentStatus } from "@prisma/client";
 
-const generateToken = async (userId: string) => {
-  try {
-    const accessToken = generateAccessToken(userId);
-    const refreshToken = generateRefreshToken(userId);
+const generateToken =async (userId : string) => {
+    try{
+        const accessToken = generateAccessToken(userId);
+        const refreshToken = generateRefreshToken(userId);
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { refreshToken },
-    });
+        await prisma.user.update({
+            where : {id : userId},
+            data : {refreshToken}
+        });
 
-    return { accessToken, refreshToken };
-  } catch (err) {
-    throw new ApiError(500, "Error in generating token");
-  }
-};
+        return {accessToken , refreshToken};
+    }catch(err){
+        throw new ApiError(500 , "Error in generating token");
+    }
+}
 
-interface UserRequest extends Request {
-  body: {
-    name: string;
-    email: string;
-    password: string;
-    role: Role;
-    clinicLocation: string;
-    specialty: string;
-  };
+interface UserRequest extends Request{
+    body : {
+        name : string,
+        email : string,
+        password : string,
+        role : Role,
+        clinicLocation : string,
+        specialty : string
+    }
 }
 
 const signup = async (req: UserRequest, res: any) => {

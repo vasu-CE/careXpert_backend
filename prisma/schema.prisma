@@ -43,10 +43,10 @@ model User {
   updatedAt      DateTime @updatedAt
 
   // Role-specific relations
-  patient Patient? @relation("PatientUser")
-  doctor  Doctor?  @relation("DoctorUser")
-  admin   Admin?   @relation("AdminUser")
-   sentMessages     ChatMessage[] @relation("SentMessages")
+  patient          Patient?      @relation("PatientUser")
+  doctor           Doctor?       @relation("DoctorUser")
+  admin            Admin?        @relation("AdminUser")
+  sentMessages     ChatMessage[] @relation("SentMessages")
   receivedMessages ChatMessage[] @relation("ReceivedMessages")
 }
 
@@ -70,6 +70,7 @@ model Doctor {
   experience     String?          @default("0")
   education      String?
   bio            String?
+  languages      String[]
   appointments   Appointment[]    @relation("DoctorAppointments")
   prescriptions  Prescription[]
   patientHistory PatientHistory[]
@@ -88,12 +89,13 @@ model Admin {
 }
 
 model Appointment {
-  id         String            @id @default(uuid())
-  patientId  String
-  doctorId   String
-  timeSlotId String
-  status     AppointmentStatus @default(PENDING)
-  notes      String?
+  id              String            @id @default(uuid())
+  patientId       String
+  doctorId        String
+  timeSlotId      String
+  status          AppointmentStatus @default(PENDING)
+  consultationFee Int?             @default(0)
+  notes           String?
 
   patient  Patient  @relation("PatientAppointments", fields: [patientId], references: [id])
   doctor   Doctor   @relation("DoctorAppointments", fields: [doctorId], references: [id])
@@ -157,14 +159,13 @@ model TimeSlot {
 model ChatMessage {
   id          String   @id @default(uuid())
   senderId    String
-  receiverId  String?  // Optional for room messages
-  room        String   // Can be city name (for group) or generated ID (for 1-1)
+  receiverId  String? // Optional for room messages
+  room        String // Can be city name (for group) or generated ID (for 1-1)
   message     String
   messageType String   @default("TEXT") // TEXT or IMAGE
-  imageUrl    String?  // URL for image messages
+  imageUrl    String? // URL for image messages
   timestamp   DateTime @default(now())
 
-  sender   User @relation("SentMessages", fields: [senderId], references: [id])
+  sender   User  @relation("SentMessages", fields: [senderId], references: [id])
   receiver User? @relation("ReceivedMessages", fields: [receiverId], references: [id])
 }
-
