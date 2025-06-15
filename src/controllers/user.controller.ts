@@ -102,26 +102,24 @@ const signup = async (req:UserRequest , res:any)  => {
 }
 
 const login = async (req:any , res:any) => {
-    const {name ,email , password} = req.body;
+    const {data , password} = req.body;
     try{
-        if(!email && !name){
-            return res.json(new ApiError(400 , "username or email is required"));
-        }
-        if([password].some((field) => field.trim() === "")){
+       
+        if([data ,password].some((field) => field.trim() === "")){
             return res.json(new ApiError(400 , "All field required"));
         }
 
         const user = await prisma.user.findFirst({
             where : {
                 OR : [
-                    {email : {equals : email , mode : 'insensitive'}},
-                    {name : {equals : name , mode : 'insensitive'}}
+                    {email : {equals : data , mode : 'insensitive'}},
+                    {name : {equals : data , mode : 'insensitive'}}
                 ]
-            }, 
+            }
         });
 
         if(!user){
-            return res.status(401).json(new ApiError(401 , "Invalid username or password"));
+            return res.status(400).json(new ApiError(401 , "Invalid username or password"));
         }
 
         const match = await bcrypt.compare(password , user.password);
@@ -165,7 +163,7 @@ const logout = async (req:any , res:any) => {
 
         return res.status(200)
         .clearCookie("accessToken" , options)
-        .clearCookie("refresToken" , options)
+        .clearCookie("refreshToken" , options)
         .json(new ApiResponse(200 , "Logout successfully"));
     }catch(err){
         return res.status(500).json(new ApiError(500 , "internal server error"));
