@@ -105,20 +105,20 @@ const signup = async (req: UserRequest, res: any) => {
 };
 
 const login = async (req: any, res: any) => {
-  const { name, email, password } = req.body;
+  const { data , password } = req.body;
   try {
-    if (!email && !name) {
+    if (!data) {
       return res.json(new ApiError(400, "username or email is required"));
     }
-    if ([password].some((field) => field.trim() === "")) {
+    if ([password , data].some((field) => field.trim() === "")) {
       return res.json(new ApiError(400, "All field required"));
     }
 
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: { equals: email, mode: "insensitive" } },
-          { name: { equals: name, mode: "insensitive" } },
+          { email: { equals: data, mode: "insensitive" } },
+          { name: { equals: data, mode: "insensitive" } },
         ],
       },
     });
