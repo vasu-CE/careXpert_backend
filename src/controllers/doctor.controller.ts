@@ -53,23 +53,25 @@ const viewDoctorAppointment = async (
             user: {
               select: {
                 name: true,
+                profilePicture : true
               },
             },
           },
         },
         timeSlot: true,
       },
-      orderBy: {
-        timeSlot: {
-          startTime: "asc",
-        },
-      },
+      // orderBy: {
+      //   timeSlot: {
+      //     startTime: "asc",
+      //   },
+      // },
     });
 
     const formattedAppointments = appointments.map((appointment) => ({
       id: appointment.id,
       status: appointment.status,
       patientName: appointment.patient.user.name,
+      profilePicture : appointment.patient.user.profilePicture,
       notes: appointment.notes,
       appointmentTime: {
         startTime: appointment.timeSlot.startTime,
