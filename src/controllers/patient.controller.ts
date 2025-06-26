@@ -301,6 +301,33 @@ const bookAppointment = async (req: any, res: Response): Promise<void> => {
   }
 };
 
+const fetchAllDoctors = async (req: any, res: Response) => {
+  try{
+    const doctors = await prisma.doctor.findMany({
+      include:{
+        user :{
+          select:{
+            name:true,
+            profilePicture:true,
+          }
+        },
+        timeSlots:{
+          select:{
+            id:true,
+            startTime:true,
+            endTime:true,
+            status:true,
+          }
+        },
+      },
+      
+    });
+    res.status(200).json(new ApiResponse(200, doctors));
+  }catch(error){
+    res.status(500).json(new ApiError(500, "Internal Server Error", [error]));
+    return;
+  }}
+
 
 const getUpcomingAppointments = async (
   req: any,
@@ -758,5 +785,6 @@ export {
   getPastAppointments,
   cancelAppointment,
   viewPrescriptions,
-  prescriptionPdf
+  prescriptionPdf,
+  fetchAllDoctors
 };

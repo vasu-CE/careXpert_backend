@@ -1,5 +1,5 @@
 import express, { Router } from 'express'
-import {searchDoctors,availableTimeSlots,bookAppointment, cancelAppointment, viewPrescriptions, prescriptionPdf, getUpcomingAppointments, getPastAppointments} from '../controllers/patient.controller'
+import {searchDoctors,availableTimeSlots,bookAppointment, cancelAppointment, viewPrescriptions, prescriptionPdf, getUpcomingAppointments, getPastAppointments, fetchAllDoctors} from '../controllers/patient.controller'
 import { isAuthenticated } from '../middlewares/auth.middleware';
 import { isPatient } from '../utils/helper';
 
@@ -18,7 +18,8 @@ router.get("/past-appointments",isAuthenticated,isPatient,getPastAppointments);
 router.patch("/cancel-appointment/:appointmentId",isAuthenticated,isPatient,cancelAppointment);
 
 router.get("/view-Prescriptions",isAuthenticated,isPatient,viewPrescriptions);
-router.get("/prescription-pdf/:id" , prescriptionPdf)
+router.get("/prescription-pdf/:id" , prescriptionPdf);
+router.get("/fetchAllDoctors",fetchAllDoctors);
 
 
 export default router;
