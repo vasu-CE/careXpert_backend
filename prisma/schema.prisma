@@ -144,6 +144,7 @@ model TimeSlot {
   doctorId  String
   startTime DateTime
   endTime   DateTime
+  consultationFee Int?             @default(0)
   status    TimeSlotStatus @default(AVAILABLE)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt

@@ -303,7 +303,7 @@ const bookAppointment = async (req: any, res: Response): Promise<void> => {
 
 const fetchAllDoctors = async (req: any, res: Response) => {
   try{
-    const doctors = await prisma.doctor.findMany({
+    const doctorss = await prisma.doctor.findMany({
       include:{
         user :{
           select:{
@@ -311,17 +311,39 @@ const fetchAllDoctors = async (req: any, res: Response) => {
             profilePicture:true,
           }
         },
-        timeSlots:{
-          select:{
-            id:true,
-            startTime:true,
-            endTime:true,
-            status:true,
-          }
-        },
       },
-      
     });
+
+    const doctors  = await Promise.all(
+      doctorss.map(async (doctor) => {
+        const nextSlot = await prisma.timeSlot.findFirst({
+          where : {
+            doctorId : doctor.id,
+            startTime : {
+              gte : new Date()
+            },
+            status : TimeSlotStatus.AVAILABLE
+          },
+          orderBy : {
+            startTime : 'asc'
+          },
+          select : {
+            id : true,
+            consultationFee : true,
+            startTime : true,
+            endTime : true,
+            status : true
+          }
+        });
+
+        return {
+          ...doctor,
+          nextAvailable : nextSlot || null
+        }
+      })
+    )
+
+    
     res.status(200).json(new ApiResponse(200, doctors));
   }catch(error){
     res.status(500).json(new ApiError(500, "Internal Server Error", [error]));

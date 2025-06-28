@@ -24,12 +24,12 @@
     "@types/node": "^22.15.17",
     "@types/pdfkit": "^0.13.9",
     "nodemon": "^3.1.10",
-    "prisma": "^6.9.0",
+    "prisma": "^6.10.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@prisma/client": "^6.9.0",
+    "@prisma/client": "^6.10.1",
     "bcrypt": "^6.0.0",
     "cloudinary": "^1.41.3",
     "cookie-parser": "^1.4.7",
