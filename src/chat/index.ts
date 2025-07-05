@@ -2,6 +2,8 @@ import { Server, Socket } from "socket.io";
 import { handleRoomSocket } from "./roomManager";
 import { handleDmSocket } from "./dmManager";
 
+const onlineUsers = new Map<string, string>();
+
 export function setupChatSocket(io: Server) {
   io.on("connection", (socket: Socket) => {
     console.log(`User connected: ${socket.id}`);
@@ -11,10 +13,10 @@ export function setupChatSocket(io: Server) {
       handleDmSocket(io, socket);
     } catch (error) {
       console.error("Error setting up socket handlers:", error);
-    }
+    } 
 
     socket.on("disconnect", () => {
-      console.log(`User disconnected: ${socket.id}`);
+      console.log(`User went offline`);
     });
   });
 }

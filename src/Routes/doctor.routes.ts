@@ -1,5 +1,5 @@
 import { Router } from "express";
-import {viewDoctorAppointment , updateAppointmentStatus, addTimeslot,viewTimeslots, cancelAppointment, getPatientHistory, updateTimeSlot, deleteTimeSlot} from "../controllers/doctor.controller";
+import {viewDoctorAppointment , updateAppointmentStatus, addTimeslot,viewTimeslots, cancelAppointment, getPatientHistory, updateTimeSlot, deleteTimeSlot, cityRooms} from "../controllers/doctor.controller";
 import { isDoctor } from "../utils/helper";
 import { isAuthenticated } from "../middlewares/auth.middleware";
 
@@ -14,5 +14,7 @@ router.patch("/cancel-appointment/:appointmentId",isAuthenticated,isDoctor,cance
 router.get("/patient-history/:patientId",isAuthenticated,isDoctor,getPatientHistory);
 router.patch("/update-timeSlot/:timeSlotID",isAuthenticated,isDoctor,updateTimeSlot);
 router.delete("/delete-timeSlot/:timeSlotId",isAuthenticated,isDoctor,deleteTimeSlot);
+
+router.get('/city-rooms',isAuthenticated , isDoctor , cityRooms);
 export default router;
 

@@ -4,12 +4,6 @@ import { PrismaClient } from "@prisma/client";
 import { uploadToCloudinary } from "../utils/cloudinary";
 
 const prisma = new PrismaClient();
-
-interface JoinDmRoomData {
-  roomId: string;
-  userId: string;
-}
-
 interface DmMessageData {
   roomId: string;
   senderId: string;
@@ -22,10 +16,19 @@ interface DmMessageData {
 export function handleDmSocket(io: Server, socket: Socket) {
   socket.on(
     "joinDmRoom",
-    (message: { event: string; data: JoinDmRoomData }) => {
+    async (roomId : string ) => {
       try {
-        const { roomId } = message.data;
+        // const { roomId } = message;
         socket.join(roomId);
+
+        // const clients = await io.in(roomId).allSockets();
+        // // console.log(`${socket.id} joined room ${roomId}`);
+        // console.log(`Room ${roomId} has ${clients.size} user(s)`);
+    
+        // if (clients.size === 2) {
+        //   // Notify both users that chat is ready
+        //   io.to(roomId).emit("bothUsersJoined", { roomId });
+        // }
       } catch (error) {
         console.error("Error in joinDmRoom:", error);
         socket.emit("error", "Failed to join DM room");
@@ -40,6 +43,7 @@ export function handleDmSocket(io: Server, socket: Socket) {
         const { roomId, senderId, receiverId, username, text, image } =
           message.data;
         let messageData: any = {
+          roomId,
           senderId,
           username,
           text,
@@ -61,7 +65,7 @@ export function handleDmSocket(io: Server, socket: Socket) {
         }
 
         const formattedMessage = formatMessage(messageData);
-
+        // console.log(formattedMessage)
         io.to(roomId).emit("message", formattedMessage);
 
         await prisma.chatMessage.create({

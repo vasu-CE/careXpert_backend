@@ -8,6 +8,7 @@ import {
 import { ApiResponse } from "../utils/ApiResponse";
 import { ApiError } from "../utils/ApiError";
 import { time } from "console";
+import doc from "pdfkit";
 
 const prisma = new PrismaClient();
 
@@ -443,6 +444,39 @@ const deleteTimeSlot = async (req: UserRequest, res: Response) => {
   }
 };
 
+const cityRooms = async (req : UserRequest , res : Response) => {
+  try{
+    const id = req?.user?.doctor?.id;
+
+    const doctor = await prisma.doctor.findFirst({
+      where : {
+        id
+      },
+      select : {
+        clinicLocation : true
+      }
+    });
+
+    if(!doctor){
+      res.status(404).json(new ApiError(404 , "Doctor not found"));
+      return;
+    }
+
+    const data = {
+      clinicLocation : doctor.clinicLocation,
+      count : await prisma.doctor.count({
+        where : { clinicLocation : doctor.clinicLocation }
+      })
+    }
+
+    res.status(200).json(new ApiResponse(200 ,data));
+    return
+  }catch(err){
+    res.status(500).json(new ApiError(500 , "Internal server error " , [err]));
+    return;
+  }
+}
+
 export {
   viewDoctorAppointment,
   updateAppointmentStatus,
@@ -452,4 +486,5 @@ export {
   getPatientHistory,
   updateTimeSlot,
   deleteTimeSlot,
+  cityRooms
 };
