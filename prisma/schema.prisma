@@ -48,6 +48,9 @@ model User {
   admin            Admin?        @relation("AdminUser")
   sentMessages     ChatMessage[] @relation("SentMessages")
   receivedMessages ChatMessage[] @relation("ReceivedMessages")
+  rooms            Room[]        @relation("RoomMembers")
+  adminRooms       Room[]        @relation("RoomAdmin")
+  roomId           String?
 }
 
 model Patient {
@@ -94,7 +97,7 @@ model Appointment {
   doctorId        String
   timeSlotId      String
   status          AppointmentStatus @default(PENDING)
-  consultationFee Int?             @default(0)
+  consultationFee Int?              @default(0)
   notes           String?
 
   patient  Patient  @relation("PatientAppointments", fields: [patientId], references: [id])
@@ -140,14 +143,14 @@ model PatientHistory {
 }
 
 model TimeSlot {
-  id        String         @id @default(uuid())
-  doctorId  String
-  startTime DateTime
-  endTime   DateTime
-  consultationFee Int?             @default(0)
-  status    TimeSlotStatus @default(AVAILABLE)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id              String         @id @default(uuid())
+  doctorId        String
+  startTime       DateTime
+  endTime         DateTime
+  consultationFee Int?           @default(0)
+  status          TimeSlotStatus @default(AVAILABLE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   // Relations
   doctor      Doctor        @relation(fields: [doctorId], references: [id])
@@ -161,7 +164,7 @@ model ChatMessage {
   id          String   @id @default(uuid())
   senderId    String
   receiverId  String? // Optional for room messages
-  room        String // Can be city name (for group) or generated ID (for 1-1)
+  roomId      String?
   message     String
   messageType String   @default("TEXT") // TEXT or IMAGE
   imageUrl    String? // URL for image messages
@@ -169,4 +172,17 @@ model ChatMessage {
 
   sender   User  @relation("SentMessages", fields: [senderId], references: [id])
   receiver User? @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  room     Room? @relation("RoomMessages", fields: [roomId], references: [id])
+}
+
+model Room {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  admin     User[]   @relation("RoomAdmin")
+
+  members  User[]        @relation("RoomMembers")
+  messages ChatMessage[] @relation("RoomMessages")
+
+  @@index([name])
 }

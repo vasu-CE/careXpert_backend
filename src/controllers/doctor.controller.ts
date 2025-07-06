@@ -446,33 +446,68 @@ const deleteTimeSlot = async (req: UserRequest, res: Response) => {
 
 const cityRooms = async (req : UserRequest , res : Response) => {
   try{
-    const id = req?.user?.doctor?.id;
+    const userId = req?.user?.id;
 
-    const doctor = await prisma.doctor.findFirst({
+    const rooms = await prisma.room.findMany({
       where : {
-        id
+        members : {
+          some : {
+            id : userId
+          }
+        }
       },
-      select : {
-        clinicLocation : true
+      include : {
+        members : {
+          select : {
+            id : true,
+            name : true,
+            profilePicture : true
+          }
+        },
+        admin : {
+          select : {
+            id : true,
+            name : true,
+            profilePicture : true
+          }
+        },
       }
-    });
+    })
 
-    if(!doctor){
-      res.status(404).json(new ApiError(404 , "Doctor not found"));
-      return;
-    }
-
-    const data = {
-      clinicLocation : doctor.clinicLocation,
-      count : await prisma.doctor.count({
-        where : { clinicLocation : doctor.clinicLocation }
-      })
-    }
-
-    res.status(200).json(new ApiResponse(200 ,data));
+    res.status(200).json(new ApiResponse(200 ,rooms));
     return
   }catch(err){
     res.status(500).json(new ApiError(500 , "Internal server error " , [err]));
+    return;
+  }
+}
+
+const createRoom = async (req : UserRequest , res : Response) => {
+  try{
+    const id = req.user?.id;
+    const {roomName} = req.body;
+
+    if(!roomName){
+      res.status(404).json(new ApiError(404 , "roomname is missing"));
+      return;
+    }
+
+    const room = await prisma.room.create({
+      data: {
+        name: roomName,
+        members: {
+          connect: [{ id }]
+        },
+        admin: {
+          connect: [{ id }]
+        }
+      }
+
+    });
+    res.status(200).json(new ApiResponse(200 ,room , "Room created Successfully"));
+    return;
+  }catch(err){
+    res.status(500).json(new ApiError(500 , "Internal server error" , [err]));
     return;
   }
 }
@@ -486,5 +521,6 @@ export {
   getPatientHistory,
   updateTimeSlot,
   deleteTimeSlot,
-  cityRooms
+  cityRooms,
+  createRoom
 };

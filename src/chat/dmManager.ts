@@ -72,7 +72,7 @@ export function handleDmSocket(io: Server, socket: Socket) {
           data: {
             senderId: senderId,
             receiverId: receiverId,
-            room: roomId,
+            roomId : roomId,
             message: text,
             messageType: image ? "IMAGE" : "TEXT",
             imageUrl: image ? formattedMessage.imageUrl : null,

@@ -7,18 +7,18 @@ const prisma = new PrismaClient();
 // Controller to get messages for a room (city chat)
 export const getRoomMessages = async (req: Request, res: any) => {
   try {
-    const { city } = req.params;
+    const { roomId } = req.params;
 
-    if (!city) {
+    if (!roomId) {
       return res
         .status(400)
-        .json(new ApiError(400, "City parameter is missing"));
+        .json(new ApiError(400, "roomId parameter is missing"));
     }
 
     // Fetch messages for the specified room
     const messages = await prisma.chatMessage.findMany({
       where: {
-        room: city, // Filter by room name (city)
+        roomId: roomId, // Filter by room name (city)
         // Assuming room messages have receiverId as null or undefined
         receiverId: null,
       },
@@ -57,7 +57,7 @@ export const getDmMessages = async (req: Request, res: any) => {
     // Fetch messages for the specified DM room
     const messages = await prisma.chatMessage.findMany({
       where: {
-        room: roomId, // Filter by DM room ID
+        roomId: roomId, // Filter by DM room ID
         // Assuming DM messages always have receiverId not null/undefined
         NOT: { receiverId: null },
       },

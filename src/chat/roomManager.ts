@@ -7,14 +7,15 @@ const prisma = new PrismaClient();
 interface JoinRoomData {
   userId: string;
   username: string;
-  city: string;
+  roomId: string;
 }
 
 interface RoomMessageData {
   senderId: string;
   username: string;
-  city: string;
+  roomId: string;
   text: string;
+  image?: string;
 }
 
 export function handleRoomSocket(io: Server, socket: Socket) {
@@ -22,19 +23,19 @@ export function handleRoomSocket(io: Server, socket: Socket) {
     "joinRoom",
     async (message: { event: string; data: JoinRoomData }) => {
       try {
-        const { userId, username, city } = message.data;
+        const { userId, username, roomId } = message.data;
 
-        socket.join(city);
+        socket.join(roomId);
 
         const welcomeMsg = formatMessage({
           senderId: undefined,
           username: "CareXpert Bot",
-          text: `Welcome to ${city} room!`,
+          text: `Welcome to ${roomId} room!`,
         });
 
         socket.emit("message", welcomeMsg);
 
-        socket.broadcast.to(city).emit(
+        socket.broadcast.to(roomId).emit(
           "message",
           formatMessage({
             senderId: undefined,
@@ -53,9 +54,10 @@ export function handleRoomSocket(io: Server, socket: Socket) {
     "roomMessage",
     async (message: { event: string; data: RoomMessageData }) => {
       try {
-        const { senderId, username, city, text } = message.data;
+        const { senderId, username, roomId, text } = message.data;
 
         const messageData = {
+          roomId,
           senderId,
           username,
           text,
@@ -64,13 +66,13 @@ export function handleRoomSocket(io: Server, socket: Socket) {
         const formattedMessage = formatMessage(messageData);
 
         // Broadcast
-        io.in(city).emit("message", formattedMessage);
+        io.in(roomId).emit("message", formattedMessage);
 
         // Persist to DB
         await prisma.chatMessage.create({
           data: {
             senderId: senderId,
-            room: city,
+            roomId: roomId,
             message: text,
             messageType: "TEXT",
             imageUrl: null,
