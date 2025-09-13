@@ -19,7 +19,7 @@ interface GeminiResponse {
  */
 export const processSymptoms = async (req: any, res: any) => {
   try {
-    const { symptoms } = req.body;
+    const { symptoms, language = "en" } = req.body;
     const userId = req.user?.id;
 
     if (
@@ -35,6 +35,11 @@ export const processSymptoms = async (req: any, res: any) => {
     }
 
     // Create the prompt based on ai-chat.md specifications
+    const languageInstruction =
+      language !== "en"
+        ? `\n\nIMPORTANT: Respond in ${language} language. All text in the JSON response (probable_causes, recommendation, disclaimer) should be in ${language}. For the severity field, translate "mild", "moderate", and "severe" to the appropriate words in ${language}.`
+        : "";
+
     const prompt = `You are an empathetic and accurate medical assistant AI. When given the user's symptoms in text, you should:
 
 1. Interpret the symptoms, even if the description is brief or incomplete.
@@ -45,7 +50,7 @@ export const processSymptoms = async (req: any, res: any) => {
 
 Your output must always be in JSON format exactly as specified below.
 
-User symptoms: "${symptoms.trim()}"
+User symptoms: "${symptoms.trim()}"${languageInstruction}
 
 Respond with ONLY a valid JSON object in this exact format:
 {

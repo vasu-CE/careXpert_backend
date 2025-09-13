@@ -421,8 +421,8 @@ export const getDoctorDmConversations = async (
 ) => {
   try {
     const userId = req.user?.id;
-    console.log("Doctor DM Conversations - User ID:", userId);
-    console.log("Doctor DM Conversations - User Role:", req.user?.role);
+    // console.log("Doctor DM Conversations - User ID:", userId);
+    // console.log("Doctor DM Conversations - User Role:", req.user?.role);
 
     if (!userId) {
       return res.status(401).json(new ApiError(401, "User not authenticated"));
@@ -503,8 +503,8 @@ export const getDoctorDmConversations = async (
 
     const conversationList = Array.from(conversationMap.values());
 
-    console.log("Found conversations:", conversationList.length);
-    console.log("Conversation details:", conversationList);
+    // console.log("Found conversations:", conversationList.length);
+    // console.log("Conversation details:", conversationList);
 
     return res.status(200).json(
       new ApiResponse(
