@@ -45,20 +45,6 @@ export interface UserRequest extends Request {
   user?: UserInContext;
 }
 
-export const isAdmin = (
-  req: UserRequest,
-  res: Response,
-  next: NextFunction
-): void => {
-  if (!req.user || req.user.role !== Role.ADMIN) {
-    res
-      .status(403)
-      .json(new ApiError(403, "Unauthorized: Admin access required"));
-    return;
-  }
-  next();
-};
-
 export const isDoctor = (
   req: Request,
   res: Response,
@@ -83,6 +69,21 @@ export const isPatient = (
     res
       .status(403)
       .json(new ApiError(403, "Unauthorized: Patient access required"));
+    return;
+  }
+  next();
+};
+
+export const isAdmin = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  const userReq = req as UserRequest;
+  if (!userReq.user || userReq.user.role !== Role.ADMIN) {
+    res
+      .status(403)
+      .json(new ApiError(403, "Unauthorized: Admin access required"));
     return;
   }
   next();

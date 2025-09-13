@@ -10,45 +10,72 @@ import { hash } from "crypto";
 import { isValidUUID } from "../utils/helper";
 import { TimeSlotStatus, AppointmentStatus } from "@prisma/client";
 
-const generateToken =async (userId : string) => {
-    try{
-        const accessToken = generateAccessToken(userId);
-        const refreshToken = generateRefreshToken(userId);
+const generateToken = async (userId: string) => {
+  try {
+    const accessToken = generateAccessToken(userId);
+    const refreshToken = generateRefreshToken(userId);
 
-        await prisma.user.update({
-            where : {id : userId},
-            data : {refreshToken}
-        });
+    await prisma.user.update({
+      where: { id: userId },
+      data: { refreshToken },
+    });
 
-        return {accessToken , refreshToken};
-    }catch(err){
-        throw new ApiError(500 , "Error in generating token");
-    }
-}
+    return { accessToken, refreshToken };
+  } catch (err) {
+    throw new ApiError(500, "Error in generating token");
+  }
+};
 
-interface UserRequest extends Request{
-    body : {
-        name : string,
-        email : string,
-        password : string,
-        role : Role,
-        clinicLocation : string,
-        specialty : string
-    }
+interface UserRequest extends Request {
+  body: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    role: Role;
+    clinicLocation: string;
+    specialty: string;
+  };
 }
 
 const signup = async (req: UserRequest, res: any) => {
-  const { name, email, password, role, specialty, clinicLocation } = req.body;
+  const {
+    firstName,
+    lastName,
+    email,
+    password,
+    role,
+    specialty,
+    clinicLocation,
+  } = req.body;
 
-  if ([name, email, password].some((field) => field?.trim() === "")) {
-    return res.status(400).json(new ApiError(400, "All field required"));
+  const name = `${firstName || ""} ${lastName || ""}`.trim();
+
+  if (
+    !name ||
+    !email ||
+    !password ||
+    name === "" ||
+    email.trim() === "" ||
+    password.trim() === ""
+  ) {
+    return res
+      .status(400)
+      .json(new ApiError(400, "Name, email, and password are required"));
   }
-
   if (role === "DOCTOR") {
-    if (!specialty || !clinicLocation) {
-      return res.status(400).json(new ApiError(400, "all field are required"));
+    if (
+      !specialty ||
+      !clinicLocation ||
+      specialty.trim() === "" ||
+      clinicLocation.trim() === ""
+    ) {
+      return res
+        .status(400)
+        .json(new ApiError(400, "All doctor fields are required"));
     }
   }
+
   try {
     let existingUser = await prisma.user.findFirst({
       where: { name },
@@ -57,14 +84,16 @@ const signup = async (req: UserRequest, res: any) => {
     if (existingUser) {
       return res.status(409).json(new ApiError(409, "Username already taken"));
     }
+
     existingUser = await prisma.user.findUnique({
       where: { email },
     });
-    if (existingUser) {
-      return res.status(409).json(new ApiError(409, "User already exist"));
-    }
 
+    if (existingUser) {
+      return res.status(409).json(new ApiError(409, "User already exists"));
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
+
     const result = await prisma.$transaction(async (prisma) => {
       const user = await prisma.user.create({
         data: {
@@ -85,6 +114,29 @@ const signup = async (req: UserRequest, res: any) => {
             clinicLocation,
           },
         });
+
+        // Auto-join doctor to city room based on clinic location
+        if (clinicLocation) {
+          let cityRoom = await prisma.room.findFirst({
+            where: { name: clinicLocation },
+          });
+
+          if (!cityRoom) {
+            cityRoom = await prisma.room.create({
+              data: { name: clinicLocation },
+            });
+          }
+
+          // Add user to the city room
+          await prisma.room.update({
+            where: { id: cityRoom.id },
+            data: {
+              members: {
+                connect: { id: user.id },
+              },
+            },
+          });
+        }
       } else {
         await prisma.patient.create({
           data: { userId: user.id },
@@ -93,11 +145,91 @@ const signup = async (req: UserRequest, res: any) => {
 
       return user;
     });
+
     return res
       .status(200)
-      .json(new ApiResponse(200, { user: result }, "Signup successfully"));
+      .json(new ApiResponse(200, { user: result }, "Signup successful"));
   } catch (err) {
-    console.log(err);
+    console.error(err);
+    return res
+      .status(500)
+      .json(new ApiError(500, "Internal server error", [err]));
+  }
+};
+
+const adminSignup = async (req: UserRequest, res: any) => {
+  const { firstName, lastName, email, password } = req.body;
+
+  const name = `${firstName || ""} ${lastName || ""}`.trim();
+
+  if (
+    !name ||
+    !email ||
+    !password ||
+    name === "" ||
+    email.trim() === "" ||
+    password.trim() === ""
+  ) {
+    return res
+      .status(400)
+      .json(new ApiError(400, "Name, email, and password are required"));
+  }
+
+  try {
+    let existingUser = await prisma.user.findFirst({
+      where: { name },
+    });
+
+    if (existingUser) {
+      return res.status(409).json(new ApiError(409, "Username already taken"));
+    }
+
+    existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return res.status(409).json(new ApiError(409, "User already exists"));
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await prisma.$transaction(async (prisma) => {
+      // Create the user
+      const user = await prisma.user.create({
+        data: {
+          name: name.toLowerCase(),
+          email,
+          password: hashedPassword,
+          role: "ADMIN",
+          profilePicture:
+            "https://res.cloudinary.com/de930by1y/image/upload/v1747403920/careXpert_profile_pictures/kxwsom57lcjamzpfjdod.jpg",
+        },
+      });
+
+      // Create the admin record
+      const admin = await prisma.admin.create({
+        data: {
+          userId: user.id,
+          permissions: {
+            canManageUsers: true,
+            canManageDoctors: true,
+            canManagePatients: true,
+            canViewAnalytics: true,
+            canManageSystem: true,
+          },
+        },
+      });
+
+      return { user, admin };
+    });
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, { user: result.user }, "Admin signup successful")
+      );
+  } catch (err) {
+    console.error(err);
     return res
       .status(500)
       .json(new ApiError(500, "Internal server error", [err]));
@@ -105,12 +237,12 @@ const signup = async (req: UserRequest, res: any) => {
 };
 
 const login = async (req: any, res: any) => {
-  const { data , password } = req.body;
+  const { data, password } = req.body;
   try {
     if (!data) {
       return res.json(new ApiError(400, "username or email is required"));
     }
-    if ([password , data].some((field) => field.trim() === "")) {
+    if ([password, data].some((field) => field.trim() === "")) {
       return res.json(new ApiError(400, "All field required"));
     }
 
@@ -150,7 +282,13 @@ const login = async (req: any, res: any) => {
       .status(200)
       .cookie("accessToken", accessToken, options)
       .cookie("refreshToken", refreshToken, options)
-      .json(new ApiResponse(200, user, "Login successfully"));
+      .json(
+        new ApiResponse(
+          200,
+          { ...user, accessToken, refreshToken },
+          "Login successfully"
+        )
+      );
   } catch (err) {
     return res.status(500).json(new ApiError(500, "Internal server error"));
   }
@@ -380,7 +518,7 @@ const getAuthenticatedUserProfile = async (
         : {}),
     };
 
-     res
+    res
       .status(200)
       .json(
         new ApiResponse(
@@ -389,7 +527,7 @@ const getAuthenticatedUserProfile = async (
           "User profile fetched successfully"
         )
       );
-      return;
+    return;
   } catch (error) {
     console.error("Error fetching authenticated user profile:", error);
     res.status(500).json(new ApiError(500, "Internal server error", [error]));
@@ -399,6 +537,7 @@ const getAuthenticatedUserProfile = async (
 
 export {
   signup,
+  adminSignup,
   login,
   logout,
   doctorProfile,

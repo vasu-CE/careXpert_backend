@@ -799,6 +799,46 @@ const prescriptionPdf = async (req: UserRequest, res: Response) => {
   }
 }
 
+const cityRooms = async (req: UserRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json(new ApiError(401, "User not authenticated"));
+    }
+
+    // Get all city rooms that the patient can join
+    const rooms = await prisma.room.findMany({
+      include: {
+        members: {
+          select: {
+            id: true,
+            name: true,
+            profilePicture: true,
+            role: true,
+          },
+        },
+        admin: {
+          select: {
+            id: true,
+            name: true,
+            profilePicture: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, rooms, "City rooms fetched successfully"));
+  } catch (error) {
+    console.error("Error fetching city rooms:", error);
+    return res
+      .status(500)
+      .json(new ApiError(500, "Internal server error", [error]));
+  }
+};
+
 export {
   searchDoctors,
   availableTimeSlots,
@@ -808,5 +848,6 @@ export {
   cancelAppointment,
   viewPrescriptions,
   prescriptionPdf,
-  fetchAllDoctors
+  fetchAllDoctors,
+  cityRooms
 };

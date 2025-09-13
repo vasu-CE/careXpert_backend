@@ -8,7 +8,8 @@
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",
     "deploy": "prisma migrate deploy",
-    "studio": "prisma studio"
+    "studio": "prisma studio",
+    "create-admin": "node create-admin.js"
   },
   "keywords": [],
   "author": "",
@@ -29,6 +30,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.10.1",
     "axios": "^1.10.0",
     "bcrypt": "^6.0.0",

@@ -14,27 +14,24 @@ interface DmMessageData {
 }
 
 export function handleDmSocket(io: Server, socket: Socket) {
-  socket.on(
-    "joinDmRoom",
-    async (roomId : string ) => {
-      try {
-        // const { roomId } = message;
-        socket.join(roomId);
+  socket.on("joinDmRoom", async (roomId: string) => {
+    try {
+      // const { roomId } = message;
+      socket.join(roomId);
 
-        // const clients = await io.in(roomId).allSockets();
-        // // console.log(`${socket.id} joined room ${roomId}`);
-        // console.log(`Room ${roomId} has ${clients.size} user(s)`);
-    
-        // if (clients.size === 2) {
-        //   // Notify both users that chat is ready
-        //   io.to(roomId).emit("bothUsersJoined", { roomId });
-        // }
-      } catch (error) {
-        console.error("Error in joinDmRoom:", error);
-        socket.emit("error", "Failed to join DM room");
-      }
+      // const clients = await io.in(roomId).allSockets();
+      // // console.log(`${socket.id} joined room ${roomId}`);
+      // console.log(`Room ${roomId} has ${clients.size} user(s)`);
+
+      // if (clients.size === 2) {
+      //   // Notify both users that chat is ready
+      //   io.to(roomId).emit("bothUsersJoined", { roomId });
+      // }
+    } catch (error) {
+      console.error("Error in joinDmRoom:", error);
+      socket.emit("error", "Failed to join DM room");
     }
-  );
+  });
 
   socket.on(
     "dmMessage",
@@ -65,19 +62,28 @@ export function handleDmSocket(io: Server, socket: Socket) {
         }
 
         const formattedMessage = formatMessage(messageData);
-        // console.log(formattedMessage)
+        console.log("DM Message Data:", {
+          senderId,
+          receiverId,
+          roomId,
+          message: text,
+          messageType: image ? "IMAGE" : "TEXT",
+        });
+
         io.to(roomId).emit("message", formattedMessage);
 
-        await prisma.chatMessage.create({
+        const savedMessage = await prisma.chatMessage.create({
           data: {
             senderId: senderId,
             receiverId: receiverId,
-            roomId : roomId,
+            roomId: null, // DMs don't use room IDs, they use sender/receiver relationship
             message: text,
             messageType: image ? "IMAGE" : "TEXT",
             imageUrl: image ? formattedMessage.imageUrl : null,
           },
         });
+
+        console.log("DM Message saved successfully:", savedMessage.id);
       } catch (error) {
         console.error("Error in dmMessage:", error);
         socket.emit("error", "Failed to send DM message");

@@ -50,6 +50,7 @@ model User {
   receivedMessages ChatMessage[] @relation("ReceivedMessages")
   rooms            Room[]        @relation("RoomMembers")
   adminRooms       Room[]        @relation("RoomAdmin")
+  aiChats          AiChat[]      @relation("UserAiChats")
   roomId           String?
 }
 
@@ -173,6 +174,9 @@ model ChatMessage {
   sender   User  @relation("SentMessages", fields: [senderId], references: [id])
   receiver User? @relation("ReceivedMessages", fields: [receiverId], references: [id])
   room     Room? @relation("RoomMessages", fields: [roomId], references: [id])
+
+  @@index([senderId, receiverId, timestamp])
+  @@index([roomId, timestamp])
 }
 
 model Room {
@@ -185,4 +189,20 @@ model Room {
   messages ChatMessage[] @relation("RoomMessages")
 
   @@index([name])
+}
+
+model AiChat {
+  id                String   @id @default(uuid())
+  userId            String
+  userMessage       String
+  aiResponse        Json     // Stores the complete JSON response from Gemini
+  probableCauses    String[] // Extracted from AI response for easier querying
+  severity          String   // mild, moderate, severe
+  recommendation    String   // Extracted recommendation
+  disclaimer        String   // Extracted disclaimer
+  createdAt         DateTime @default(now())
+
+  user User @relation("UserAiChats", fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
 }

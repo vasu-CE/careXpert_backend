@@ -54,7 +54,7 @@ export function handleRoomSocket(io: Server, socket: Socket) {
     "roomMessage",
     async (message: { event: string; data: RoomMessageData }) => {
       try {
-        const { senderId, username, roomId, text } = message.data;
+        const { senderId, username, roomId, text, image } = message.data;
 
         const messageData = {
           roomId,
@@ -74,8 +74,9 @@ export function handleRoomSocket(io: Server, socket: Socket) {
             senderId: senderId,
             roomId: roomId,
             message: text,
-            messageType: "TEXT",
-            imageUrl: null,
+            messageType: image ? "IMAGE" : "TEXT",
+            imageUrl: image || null,
+            receiverId: null, // Room messages don't have a specific receiver
           },
         });
       } catch (error) {

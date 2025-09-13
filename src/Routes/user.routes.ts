@@ -4,6 +4,7 @@ import {
   login,
   logout,
   signup,
+  adminSignup,
   updateDoctorProfile,
   updatePatientProfile,
   userProfile,
@@ -16,6 +17,7 @@ import upload from "../middlewares/upload";
 const router = express.Router();
 
 router.post("/signup", signup);
+router.post("/admin-signup", adminSignup);
 router.post("/login", login);
 router.post("/logout", isAuthenticated, logout);
 
