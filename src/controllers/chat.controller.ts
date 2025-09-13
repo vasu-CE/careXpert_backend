@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import { ApiError } from "../utils/ApiError";
 import { PrismaClient } from "@prisma/client";
+import { UserRequest } from "../utils/helper";
+import axios from "axios";
+import { ApiResponse } from "../utils/ApiResponse";
 
 const prisma = new PrismaClient();
 
@@ -80,3 +83,34 @@ export const getDmMessages = async (req: Request, res: any) => {
       .json(new ApiError(500, "Failed to fetch DM messages", [error]));
   }
 };
+
+export const getToken = async (req : UserRequest , res: Response) => {
+  try {
+    const apiKey = process.env.VIDEOSDK_API_KEY;
+
+    if (!apiKey) {
+      res.status(500).json(new ApiError(500, "Missing VIDEOSDK_API_KEY"));
+      return;
+    }
+
+    const response = await axios.post(
+      "https://api.videosdk.live/v2/token",
+      {},
+      {
+        headers :{
+          Authorization : `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        }
+      }
+    )
+
+    res.status(200).json(new ApiResponse(200 , {
+      roomId : response.data.roomId,
+      token : process.env.VIDEOSDK_API_KEY
+    }))
+    return;
+  } catch (err) {
+    res.status(500).json(new ApiError(500 , "Failed to create room" , [err]));
+    return;
+  }
+}
