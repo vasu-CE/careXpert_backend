@@ -37,6 +37,7 @@ const signup = async (req: Request, res: any) => {
     role,
     specialty,
     clinicLocation,
+    location, // Patient location
   } = req.body;
 
   const name = `${firstName || ""} ${lastName || ""}`.trim();
@@ -63,6 +64,12 @@ const signup = async (req: Request, res: any) => {
       return res
         .status(400)
         .json(new ApiError(400, "All doctor fields are required"));
+    }
+  } else if (role === "PATIENT") {
+    if (!location || location.trim() === "") {
+      return res
+        .status(400)
+        .json(new ApiError(400, "Location is required for patients"));
     }
   }
 
@@ -129,8 +136,34 @@ const signup = async (req: Request, res: any) => {
         }
       } else {
         await prisma.patient.create({
-          data: { userId: user.id },
+          data: { 
+            userId: user.id,
+            location: location || null,
+          },
         });
+
+        // Auto-join patient to city room based on location
+        if (location) {
+          let cityRoom = await prisma.room.findFirst({
+            where: { name: location },
+          });
+
+          if (!cityRoom) {
+            cityRoom = await prisma.room.create({
+              data: { name: location },
+            });
+          }
+
+          // Add user to the city room
+          await prisma.room.update({
+            where: { id: cityRoom.id },
+            data: {
+              members: {
+                connect: { id: user.id },
+              },
+            },
+          });
+        }
       }
 
       return user;
@@ -525,6 +558,248 @@ const getAuthenticatedUserProfile = async (
   }
 };
 
+// Notifications API
+const getNotifications = async (req: any, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    const { page = 1, limit = 10 } = req.query;
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit),
+    });
+
+    const total = await prisma.notification.count({
+      where: { userId },
+    });
+
+    res.status(200).json(
+      new ApiResponse(200, {
+        notifications,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          pages: Math.ceil(total / Number(limit)),
+        },
+      }, "Notifications fetched successfully")
+    );
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json(new ApiError(500, "Internal server error", [error]));
+  }
+};
+
+const getUnreadNotificationCount = async (req: any, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+
+    const unreadCount = await prisma.notification.count({
+      where: { 
+        userId,
+        isRead: false,
+      },
+    });
+
+    res.status(200).json(
+      new ApiResponse(200, { unreadCount }, "Unread count fetched successfully")
+    );
+  } catch (error) {
+    console.error("Error fetching unread count:", error);
+    res.status(500).json(new ApiError(500, "Internal server error", [error]));
+  }
+};
+
+const markNotificationAsRead = async (req: any, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    const { notificationId } = req.params;
+
+    const notification = await prisma.notification.updateMany({
+      where: { 
+        id: notificationId,
+        userId,
+      },
+      data: { isRead: true },
+    });
+
+    if (notification.count === 0) {
+      res.status(404).json(new ApiError(404, "Notification not found"));
+      return;
+    }
+
+    res.status(200).json(
+      new ApiResponse(200, {}, "Notification marked as read")
+    );
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
+    res.status(500).json(new ApiError(500, "Internal server error", [error]));
+  }
+};
+
+const markAllNotificationsAsRead = async (req: any, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+
+    await prisma.notification.updateMany({
+      where: { 
+        userId,
+        isRead: false,
+      },
+      data: { isRead: true },
+    });
+
+    res.status(200).json(
+      new ApiResponse(200, {}, "All notifications marked as read")
+    );
+  } catch (error) {
+    console.error("Error marking all notifications as read:", error);
+    res.status(500).json(new ApiError(500, "Internal server error", [error]));
+  }
+};
+
+// Community API
+const getCommunityMembers = async (req: any, res: Response) => {
+  try {
+    const { roomId } = req.params;
+
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+      include: {
+        members: {
+          include: {
+            patient: {
+              select: {
+                location: true,
+              },
+            },
+            doctor: {
+              select: {
+                specialty: true,
+                clinicLocation: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!room) {
+      res.status(404).json(new ApiError(404, "Community not found"));
+      return;
+    }
+
+    const members = room.members.map(member => ({
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      profilePicture: member.profilePicture,
+      role: member.role,
+      location: member.patient?.location || member.doctor?.clinicLocation || null,
+      specialty: member.doctor?.specialty || null,
+      joinedAt: member.createdAt,
+    }));
+
+    res.status(200).json(
+      new ApiResponse(200, {
+        room: {
+          id: room.id,
+          name: room.name,
+          createdAt: room.createdAt,
+        },
+        members,
+        totalMembers: members.length,
+      }, "Community members fetched successfully")
+    );
+  } catch (error) {
+    console.error("Error fetching community members:", error);
+    res.status(500).json(new ApiError(500, "Internal server error", [error]));
+  }
+};
+
+const joinCommunity = async (req: any, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    const { roomId } = req.params;
+
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+    });
+
+    if (!room) {
+      res.status(404).json(new ApiError(404, "Community not found"));
+      return;
+    }
+
+    // Check if user is already a member
+    const existingMember = await prisma.room.findFirst({
+      where: {
+        id: roomId,
+        members: {
+          some: { id: userId },
+        },
+      },
+    });
+
+    if (existingMember) {
+      res.status(400).json(new ApiError(400, "User is already a member of this community"));
+      return;
+    }
+
+    // Add user to the community
+    await prisma.room.update({
+      where: { id: roomId },
+      data: {
+        members: {
+          connect: { id: userId },
+        },
+      },
+    });
+
+    res.status(200).json(
+      new ApiResponse(200, {}, "Successfully joined the community")
+    );
+  } catch (error) {
+    console.error("Error joining community:", error);
+    res.status(500).json(new ApiError(500, "Internal server error", [error]));
+  }
+};
+
+const leaveCommunity = async (req: any, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    const { roomId } = req.params;
+
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+    });
+
+    if (!room) {
+      res.status(404).json(new ApiError(404, "Community not found"));
+      return;
+    }
+
+    // Remove user from the community
+    await prisma.room.update({
+      where: { id: roomId },
+      data: {
+        members: {
+          disconnect: { id: userId },
+        },
+      },
+    });
+
+    res.status(200).json(
+      new ApiResponse(200, {}, "Successfully left the community")
+    );
+  } catch (error) {
+    console.error("Error leaving community:", error);
+    res.status(500).json(new ApiError(500, "Internal server error", [error]));
+  }
+};
+
 export {
   signup,
   adminSignup,
@@ -535,4 +810,11 @@ export {
   updatePatientProfile,
   updateDoctorProfile,
   getAuthenticatedUserProfile,
+  getNotifications,
+  getUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  getCommunityMembers,
+  joinCommunity,
+  leaveCommunity,
 };

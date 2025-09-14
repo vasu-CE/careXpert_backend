@@ -9,6 +9,13 @@ import {
   updatePatientProfile,
   userProfile,
   getAuthenticatedUserProfile,
+  getNotifications,
+  getUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  getCommunityMembers,
+  joinCommunity,
+  leaveCommunity,
 } from "../controllers/user.controller";
 import { isAuthenticated } from "../middlewares/auth.middleware";
 import { isDoctor, isPatient } from "../utils/helper";
@@ -44,5 +51,16 @@ router.get(
   isAuthenticated,
   getAuthenticatedUserProfile
 );
+
+// Notification routes
+router.get("/notifications", isAuthenticated, getNotifications);
+router.get("/notifications/unread-count", isAuthenticated, getUnreadNotificationCount);
+router.put("/notifications/:notificationId/read", isAuthenticated, markNotificationAsRead);
+router.put("/notifications/mark-all-read", isAuthenticated, markAllNotificationsAsRead);
+
+// Community routes
+router.get("/communities/:roomId/members", isAuthenticated, getCommunityMembers);
+router.post("/communities/:roomId/join", isAuthenticated, joinCommunity);
+router.post("/communities/:roomId/leave", isAuthenticated, leaveCommunity);
 
 export default router;

@@ -65,6 +65,7 @@ model User {
 model Patient {
   id             String           @id @default(uuid())
   userId         String           @unique
+  location       String?          // City/State/Country for patients
   medicalHistory String?
   symptoms       Symptom[]
   appointments   Appointment[]    @relation("PatientAppointments")
