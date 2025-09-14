@@ -4,7 +4,6 @@ import {
   AppointmentStatus,
   PrismaClient,
   TimeSlotStatus,
-  AppointmentType,
 } from "@prisma/client";
 import { ApiResponse } from "../utils/ApiResponse";
 import { ApiError } from "../utils/ApiError";
@@ -516,9 +515,12 @@ const createRoom = async (req: Request, res: Response) => {
     res.status(500).json(new ApiError(500, "Internal server error", [err]));
     return;
   }
-}
+};
 
-const getAllDoctorAppointments = async (req: UserRequest, res: Response): Promise<void> => {
+const getAllDoctorAppointments = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const userId = req.user?.id;
   const { status, upcoming } = req.query; // status=PENDING/CONFIRMED/COMPLETED/CANCELLED, upcoming=true
 
@@ -542,8 +544,10 @@ const getAllDoctorAppointments = async (req: UserRequest, res: Response): Promis
     }
 
     if (upcoming === "true") {
-      filters.date = {
-        gte: new Date(),
+      filters.timeSlot = {
+        startTime: {
+          gte: new Date(),
+        },
       };
     }
 
@@ -551,8 +555,7 @@ const getAllDoctorAppointments = async (req: UserRequest, res: Response): Promis
       where: filters,
       include: {
         patient: {
-          select: {
-            id: true,
+          include: {
             user: {
               select: {
                 name: true,
@@ -560,14 +563,15 @@ const getAllDoctorAppointments = async (req: UserRequest, res: Response): Promis
                 email: true,
               },
             },
-            medicalHistory: true,
           },
         },
+        timeSlot: true,
       },
-      orderBy: [
-        { date: "asc" },
-        { time: "asc" },
-      ],
+      orderBy: {
+        timeSlot: {
+          startTime: "asc",
+        },
+      },
     });
 
     const formattedAppointments = appointments.map((appointment) => ({
@@ -580,6 +584,10 @@ const getAllDoctorAppointments = async (req: UserRequest, res: Response): Promis
       consultationFee: appointment.consultationFee,
       createdAt: appointment.createdAt,
       updatedAt: appointment.updatedAt,
+      appointmentTime: {
+        startTime: appointment.timeSlot?.startTime,
+        endTime: appointment.timeSlot?.endTime,
+      },
       patient: {
         id: appointment.patient.id,
         name: appointment.patient.user.name,
@@ -592,9 +600,10 @@ const getAllDoctorAppointments = async (req: UserRequest, res: Response): Promis
     res.status(200).json(new ApiResponse(200, formattedAppointments));
   } catch (error) {
     console.error("Error fetching doctor appointments:", error);
-    res.status(500).json(new ApiError(500, "Failed to fetch appointments!", [error]));
+    res
+      .status(500)
+      .json(new ApiError(500, "Failed to fetch appointments!", [error]));
   }
-};
 };
 
 export {
@@ -608,6 +617,5 @@ export {
   deleteTimeSlot,
   cityRooms,
   createRoom,
-  getAllDoctorAppointments
-  createRoom,
+  getAllDoctorAppointments,
 };

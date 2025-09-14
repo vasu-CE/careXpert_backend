@@ -2,12 +2,13 @@ import { Request, Response } from "express";
 import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import prisma from "../utils/prismClient";
-import { isValidUUID, UserRequest } from "../utils/helper";
-import { TimeSlotStatus, AppointmentStatus, Role, AppointmentType } from "@prisma/client";
-import PDFDocument from 'pdfkit';
-import fs from 'fs'; 
 import { isValidUUID, UserInRequest } from "../utils/helper";
-import { TimeSlotStatus, AppointmentStatus, Role } from "@prisma/client";
+import {
+  TimeSlotStatus,
+  AppointmentStatus,
+  Role,
+  AppointmentType,
+} from "@prisma/client";
 import PDFDocument from "pdfkit";
 import fs from "fs";
 
@@ -841,39 +842,54 @@ const cityRooms = async (req: Request, res: Response) => {
 };
 
 // New direct appointment booking functions
-const bookDirectAppointment = async (req: any, res: Response): Promise<void> => {
+const bookDirectAppointment = async (
+  req: any,
+  res: Response
+): Promise<void> => {
   const { doctorId, date, time, appointmentType, notes } = req.body;
   const patientId = req.user?.patient?.id;
 
   try {
     if (!patientId) {
-      res.status(400).json(new ApiError(400, "Only patients can book appointments!"));
+      res
+        .status(400)
+        .json(new ApiError(400, "Only patients can book appointments!"));
       return;
     }
 
     // Validate required fields
     if (!doctorId || !date || !time) {
-      res.status(400).json(new ApiError(400, "doctorId, date, and time are required!"));
+      res
+        .status(400)
+        .json(new ApiError(400, "doctorId, date, and time are required!"));
       return;
     }
 
     // Validate appointment type
     if (appointmentType && !["ONLINE", "OFFLINE"].includes(appointmentType)) {
-      res.status(400).json(new ApiError(400, "appointmentType must be 'ONLINE' or 'OFFLINE'!"));
+      res
+        .status(400)
+        .json(
+          new ApiError(400, "appointmentType must be 'ONLINE' or 'OFFLINE'!")
+        );
       return;
     }
 
     // Validate date format (should be YYYY-MM-DD)
     const appointmentDate = new Date(date);
     if (isNaN(appointmentDate.getTime())) {
-      res.status(400).json(new ApiError(400, "Invalid date format. Use YYYY-MM-DD!"));
+      res
+        .status(400)
+        .json(new ApiError(400, "Invalid date format. Use YYYY-MM-DD!"));
       return;
     }
 
     // Validate time format (should be HH:mm)
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(time)) {
-      res.status(400).json(new ApiError(400, "Invalid time format. Use HH:mm!"));
+      res
+        .status(400)
+        .json(new ApiError(400, "Invalid time format. Use HH:mm!"));
       return;
     }
 
@@ -924,7 +940,14 @@ const bookDirectAppointment = async (req: any, res: Response): Promise<void> => 
     });
 
     if (existingAppointment) {
-      res.status(409).json(new ApiError(409, "An appointment already exists for this doctor at the specified date and time!"));
+      res
+        .status(409)
+        .json(
+          new ApiError(
+            409,
+            "An appointment already exists for this doctor at the specified date and time!"
+          )
+        );
       return;
     }
 
@@ -990,12 +1013,17 @@ const bookDirectAppointment = async (req: any, res: Response): Promise<void> => 
   }
 };
 
-const getAllPatientAppointments = async (req: any, res: Response): Promise<void> => {
+const getAllPatientAppointments = async (
+  req: any,
+  res: Response
+): Promise<void> => {
   const patientId = req.user?.patient?.id;
 
   try {
     if (!patientId) {
-      res.status(400).json(new ApiError(400, "Only patients can view their appointments!"));
+      res
+        .status(400)
+        .json(new ApiError(400, "Only patients can view their appointments!"));
       return;
     }
 
@@ -1019,10 +1047,7 @@ const getAllPatientAppointments = async (req: any, res: Response): Promise<void>
           },
         },
       },
-      orderBy: [
-        { date: "asc" },
-        { time: "asc" },
-      ],
+      orderBy: [{ date: "asc" }, { time: "asc" }],
     });
 
     const formattedAppointments = appointments.map((appointment) => ({
@@ -1050,7 +1075,9 @@ const getAllPatientAppointments = async (req: any, res: Response): Promise<void>
     res.status(200).json(new ApiResponse(200, formattedAppointments));
   } catch (error) {
     console.error("Error fetching appointments:", error);
-    res.status(500).json(new ApiError(500, "Failed to fetch appointments!", [error]));
+    res
+      .status(500)
+      .json(new ApiError(500, "Failed to fetch appointments!", [error]));
   }
 };
 
@@ -1066,6 +1093,5 @@ export {
   fetchAllDoctors,
   cityRooms,
   bookDirectAppointment,
-  getAllPatientAppointments
-  cityRooms,
+  getAllPatientAppointments,
 };
