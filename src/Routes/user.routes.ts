@@ -12,7 +12,7 @@ import {
 } from "../controllers/user.controller";
 import { isAuthenticated } from "../middlewares/auth.middleware";
 import { isDoctor, isPatient } from "../utils/helper";
-import upload from "../middlewares/upload";
+import {upload} from "../middlewares/upload";
 
 const router = express.Router();
 

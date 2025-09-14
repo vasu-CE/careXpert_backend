@@ -62,6 +62,7 @@ model Patient {
   appointments   Appointment[]    @relation("PatientAppointments")
   prescriptions  Prescription[]
   PatientHistory PatientHistory[]
+  reports        Report[]
 
   user User @relation("PatientUser", fields: [userId], references: [id])
 }
@@ -191,6 +192,31 @@ model Room {
   @@index([name])
 }
 
+model Report {
+  id                String   @id @default(uuid())
+  patientId         String
+  filename          String
+  fileUrl           String
+  extractedText     String?
+  summary           String?
+  abnormalValues    Json?    // Store as JSON for flexibility
+  possibleConditions String[] // Array of possible conditions
+  recommendation    String?
+  disclaimer        String?
+  mimeType          String
+  fileSize          Int      // in bytes
+  status            String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  error             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  patient           Patient  @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@index([status])
+  @@index([createdAt])
+}
+
 model AiChat {
   id                String   @id @default(uuid())
   userId            String
@@ -206,3 +232,5 @@ model AiChat {
 
   @@index([userId, createdAt])
 }
+
+

@@ -1,18 +1,18 @@
 import { Request, Response } from "express";
 import { ApiError } from "../utils/ApiError";
 import { PrismaClient } from "@prisma/client";
-import { UserRequest } from "../utils/helper";
+import { UserInRequest } from "../utils/helper";
 import axios from "axios";
 import { ApiResponse } from "../utils/ApiResponse";
 
 const prisma = new PrismaClient();
 
 // Controller to get messages for a room (city chat)
-export const getRoomMessages = async (req: UserRequest, res: Response) => {
+export const getRoomMessages = async (req: Request, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const { roomId } = (req as any).params;
     const { page = 1, limit = 50 } = req.query;
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
 
     if (!roomId) {
       return res
@@ -98,11 +98,11 @@ export const getRoomMessages = async (req: UserRequest, res: Response) => {
 };
 
 // Controller to get messages for a direct message chat (1-on-1)
-export const getDmMessages = async (req: UserRequest, res: Response) => {
+export const getDmMessages = async (req: Request, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const { roomId } = (req as any).params;
     const { page = 1, limit = 50 } = req.query;
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
 
     if (!roomId) {
       return res
@@ -117,7 +117,7 @@ export const getDmMessages = async (req: UserRequest, res: Response) => {
     // For DMs, we need to find the other user from the roomId pattern
     // roomId format is typically "user1_user2" (sorted alphabetically)
     const userIds = roomId.split("_");
-    const otherUserId = userIds.find((id) => id !== userId);
+    const otherUserId = userIds.find((id: string) => id !== userId);
 
     if (!otherUserId) {
       return res.status(400).json(new ApiError(400, "Invalid DM room ID"));
@@ -190,17 +190,14 @@ export const getDmMessages = async (req: UserRequest, res: Response) => {
 };
 
 // Controller to get 1-on-1 chat history between two users
-export const getOneOnOneChatHistory = async (
-  req: UserRequest,
-  res: Response
-) => {
+export const getOneOnOneChatHistory = async (req: Request, res: Response) => {
   try {
-    const { otherUserId } = req.params;
+    const { otherUserId } = (req as any).params;
     const { page = 1, limit = 50 } = req.query;
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
 
     console.log("1-on-1 Chat History - User ID:", userId);
-    console.log("1-on-1 Chat History - User Role:", req.user?.role);
+    console.log("1-on-1 Chat History - User Role:", (req as any).user?.role);
     console.log("1-on-1 Chat History - Other User ID:", otherUserId);
 
     if (!otherUserId) {
@@ -301,11 +298,11 @@ export const getOneOnOneChatHistory = async (
 };
 
 // Controller to get city-based room chat history
-export const getCityChatHistory = async (req: UserRequest, res: Response) => {
+export const getCityChatHistory = async (req: Request, res: Response) => {
   try {
-    const { cityName } = req.params;
+    const { cityName } = (req as any).params;
     const { page = 1, limit = 50 } = req.query;
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
 
     if (!cityName) {
       return res
@@ -415,14 +412,11 @@ export const getCityChatHistory = async (req: UserRequest, res: Response) => {
 };
 
 // Controller to get all DM conversations for a doctor
-export const getDoctorDmConversations = async (
-  req: UserRequest,
-  res: Response
-) => {
+export const getDoctorDmConversations = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
     // console.log("Doctor DM Conversations - User ID:", userId);
-    // console.log("Doctor DM Conversations - User Role:", req.user?.role);
+    // console.log("Doctor DM Conversations - User Role:", (req as any).user?.role);
 
     if (!userId) {
       return res.status(401).json(new ApiError(401, "User not authenticated"));
@@ -525,11 +519,11 @@ export const getDoctorDmConversations = async (
 
 // Controller to get all DM conversations for a patient
 export const getPatientDmConversations = async (
-  req: UserRequest,
+  req: Request,
   res: Response
 ) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
 
     if (!userId) {
       return res.status(401).json(new ApiError(401, "User not authenticated"));
@@ -627,7 +621,7 @@ export const getPatientDmConversations = async (
   }
 };
 
-export const getToken = async (req: UserRequest, res: Response) => {
+export const getToken = async (req: Request, res: Response) => {
   try {
     const apiKey = process.env.VIDEOSDK_API_KEY;
 

@@ -1,5 +1,5 @@
-import { Response } from "express";
-import { UserRequest } from "../utils/helper";
+import { Request, Response } from "express";
+import { UserInRequest } from "../utils/helper";
 import {
   AppointmentStatus,
   PrismaClient,
@@ -13,10 +13,10 @@ import doc from "pdfkit";
 const prisma = new PrismaClient();
 
 const viewDoctorAppointment = async (
-  req: UserRequest,
+  req: Request,
   res: Response
 ): Promise<void> => {
-  const userId = req.user?.id;
+  const userId = (req as any).user?.id;
   const { status, upcoming } = req.query; // status=PENDING/COMPLETED/CANCELLED, upcoming=true
 
   const doctor = await prisma.doctor.findUnique({
@@ -54,7 +54,7 @@ const viewDoctorAppointment = async (
             user: {
               select: {
                 name: true,
-                profilePicture : true
+                profilePicture: true,
               },
             },
           },
@@ -72,7 +72,7 @@ const viewDoctorAppointment = async (
       id: appointment.id,
       status: appointment.status,
       patientName: appointment.patient.user.name,
-      profilePicture : appointment.patient.user.profilePicture,
+      profilePicture: appointment.patient.user.profilePicture,
       notes: appointment.notes,
       appointmentTime: {
         startTime: appointment.timeSlot.startTime,
@@ -88,8 +88,8 @@ const viewDoctorAppointment = async (
   }
 };
 
-const updateAppointmentStatus = async (req: UserRequest, res: Response) => {
-  const { id } = req.params;
+const updateAppointmentStatus = async (req: Request, res: Response) => {
+  const { id } = (req as any).params;
   const { status, notes, prescriptionText } = req.body;
 
   if (!["COMPLETED", "CANCELLED"].includes(status)) {
@@ -161,7 +161,7 @@ const updateAppointmentStatus = async (req: UserRequest, res: Response) => {
   }
 };
 
-const addTimeslot = async (req: UserRequest, res: Response) => {
+const addTimeslot = async (req: Request, res: Response) => {
   const { startTime, endTime } = req.body;
   if (!startTime || !endTime) {
     res.status(400).json(new ApiError(400, "Start and end time required"));
@@ -184,7 +184,7 @@ const addTimeslot = async (req: UserRequest, res: Response) => {
     return;
   }
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
     const doctor = await prisma.doctor.findUnique({
       where: { userId },
       select: { id: true },
@@ -235,9 +235,9 @@ const addTimeslot = async (req: UserRequest, res: Response) => {
   }
 };
 
-const cancelAppointment = async (req: UserRequest, res: any) => {
-  const { appointmentId } = req.params;
-  const doctorId = req.user?.doctor?.id;
+const cancelAppointment = async (req: Request, res: any) => {
+  const { appointmentId } = (req as any).params;
+  const doctorId = (req as any).user?.doctor?.id;
 
   try {
     if (!doctorId) {
@@ -286,9 +286,9 @@ const cancelAppointment = async (req: UserRequest, res: any) => {
   }
 };
 
-const viewTimeslots = async (req: UserRequest, res: Response) => {
+const viewTimeslots = async (req: Request, res: Response) => {
   const { status, startTime, endTime } = req.query; //status = AVAILABLE,BOOKED,CANCELLED
-  const userId = req.user?.id;
+  const userId = (req as any).user?.id;
 
   try {
     const doctor = await prisma.doctor.findUnique({
@@ -331,9 +331,9 @@ const viewTimeslots = async (req: UserRequest, res: Response) => {
   }
 };
 
-const getPatientHistory = async (req: UserRequest, res: Response) => {
-  const patientId = req.params;
-  const user = req.user;
+const getPatientHistory = async (req: Request, res: Response) => {
+  const patientId = (req as any).params;
+  const user = (req as any).user;
 
   if (!patientId) {
     res.status(400).json(new ApiError(400, "Patient not found!"));
@@ -371,9 +371,9 @@ const getPatientHistory = async (req: UserRequest, res: Response) => {
   }
 };
 
-const updateTimeSlot = async (req: UserRequest, res: Response) => {
-  const timeSlotId = req.params.timeSlotId;
-  const doctorId = req.user?.doctor?.id;
+const updateTimeSlot = async (req: Request, res: Response) => {
+  const timeSlotId = (req as any).params.timeSlotId;
+  const doctorId = (req as any).user?.doctor?.id;
   const { startTime, endTime, status } = req.body;
 
   if (!doctorId) {
@@ -399,9 +399,9 @@ const updateTimeSlot = async (req: UserRequest, res: Response) => {
   }
 };
 
-const deleteTimeSlot = async (req: UserRequest, res: Response) => {
-  const timeSlotID = req.params.timeSlotID;
-  const doctorId = req.user?.doctor?.id;
+const deleteTimeSlot = async (req: Request, res: Response) => {
+  const timeSlotID = (req as any).params.timeSlotID;
+  const doctorId = (req as any).user?.doctor?.id;
 
   if (!doctorId) {
     res
@@ -444,51 +444,51 @@ const deleteTimeSlot = async (req: UserRequest, res: Response) => {
   }
 };
 
-const cityRooms = async (req : UserRequest , res : Response) => {
-  try{
+const cityRooms = async (req: Request, res: Response) => {
+  try {
     const userId = req?.user?.id;
 
     const rooms = await prisma.room.findMany({
-      where : {
-        members : {
-          some : {
-            id : userId
-          }
-        }
+      where: {
+        members: {
+          some: {
+            id: userId,
+          },
+        },
       },
-      include : {
-        members : {
-          select : {
-            id : true,
-            name : true,
-            profilePicture : true
-          }
+      include: {
+        members: {
+          select: {
+            id: true,
+            name: true,
+            profilePicture: true,
+          },
         },
-        admin : {
-          select : {
-            id : true,
-            name : true,
-            profilePicture : true
-          }
+        admin: {
+          select: {
+            id: true,
+            name: true,
+            profilePicture: true,
+          },
         },
-      }
-    })
+      },
+    });
 
-    res.status(200).json(new ApiResponse(200 ,rooms));
-    return
-  }catch(err){
-    res.status(500).json(new ApiError(500 , "Internal server error " , [err]));
+    res.status(200).json(new ApiResponse(200, rooms));
+    return;
+  } catch (err) {
+    res.status(500).json(new ApiError(500, "Internal server error ", [err]));
     return;
   }
-}
+};
 
-const createRoom = async (req : UserRequest , res : Response) => {
-  try{
-    const id = req.user?.id;
-    const {roomName} = req.body;
+const createRoom = async (req: Request, res: Response) => {
+  try {
+    const id = (req as any).user?.id;
+    const { roomName } = req.body;
 
-    if(!roomName){
-      res.status(404).json(new ApiError(404 , "roomname is missing"));
+    if (!roomName) {
+      res.status(404).json(new ApiError(404, "roomname is missing"));
       return;
     }
 
@@ -496,21 +496,22 @@ const createRoom = async (req : UserRequest , res : Response) => {
       data: {
         name: roomName,
         members: {
-          connect: [{ id }]
+          connect: [{ id }],
         },
         admin: {
-          connect: [{ id }]
-        }
-      }
-
+          connect: [{ id }],
+        },
+      },
     });
-    res.status(200).json(new ApiResponse(200 ,room , "Room created Successfully"));
+    res
+      .status(200)
+      .json(new ApiResponse(200, room, "Room created Successfully"));
     return;
-  }catch(err){
-    res.status(500).json(new ApiError(500 , "Internal server error" , [err]));
+  } catch (err) {
+    res.status(500).json(new ApiError(500, "Internal server error", [err]));
     return;
   }
-}
+};
 
 export {
   viewDoctorAppointment,
@@ -522,5 +523,5 @@ export {
   updateTimeSlot,
   deleteTimeSlot,
   cityRooms,
-  createRoom
+  createRoom,
 };

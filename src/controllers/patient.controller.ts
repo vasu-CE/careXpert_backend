@@ -1,11 +1,11 @@
-import { Response } from "express";
+import { Request, Response } from "express";
 import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import prisma from "../utils/prismClient";
-import { isValidUUID, UserRequest } from "../utils/helper";
+import { isValidUUID, UserInRequest } from "../utils/helper";
 import { TimeSlotStatus, AppointmentStatus, Role } from "@prisma/client";
-import PDFDocument from 'pdfkit';
-import fs from 'fs'; 
+import PDFDocument from "pdfkit";
+import fs from "fs";
 
 const searchDoctors = async (req: any, res: Response) => {
   const { specialty, location } = req.query;
@@ -50,7 +50,7 @@ const searchDoctors = async (req: any, res: Response) => {
           select: {
             name: true,
             email: true,
-            profilePicture : true
+            profilePicture: true,
           },
         },
       },
@@ -64,7 +64,7 @@ const searchDoctors = async (req: any, res: Response) => {
 };
 
 const availableTimeSlots = async (req: any, res: Response): Promise<void> => {
-  const { doctorId } = req.params;
+  const { doctorId } = (req as any).params;
   const date = req.query.date as string | undefined;
 
   try {
@@ -159,7 +159,7 @@ const availableTimeSlots = async (req: any, res: Response): Promise<void> => {
 const bookAppointment = async (req: any, res: Response): Promise<void> => {
   const { timeSlotId } = req.body;
   // const patientId = req.user?.patient?.id; // Get patient ID from authenticated user
-  const userId = req.user?.id;
+  const userId = (req as any).user?.id;
   const patient = await prisma.patient.findUnique({
     where: { userId },
     select: { id: true },
@@ -302,60 +302,59 @@ const bookAppointment = async (req: any, res: Response): Promise<void> => {
 };
 
 const fetchAllDoctors = async (req: any, res: Response) => {
-  try{
+  try {
     const doctorss = await prisma.doctor.findMany({
-      include:{
-        user :{
-          select:{
-            name:true,
-            profilePicture:true,
-          }
+      include: {
+        user: {
+          select: {
+            name: true,
+            profilePicture: true,
+          },
         },
       },
     });
 
-    const doctors  = await Promise.all(
+    const doctors = await Promise.all(
       doctorss.map(async (doctor) => {
         const nextSlot = await prisma.timeSlot.findFirst({
-          where : {
-            doctorId : doctor.id,
-            startTime : {
-              gte : new Date()
+          where: {
+            doctorId: doctor.id,
+            startTime: {
+              gte: new Date(),
             },
-            status : TimeSlotStatus.AVAILABLE
+            status: TimeSlotStatus.AVAILABLE,
           },
-          orderBy : {
-            startTime : 'asc'
+          orderBy: {
+            startTime: "asc",
           },
-          select : {
-            id : true,
-            consultationFee : true,
-            startTime : true,
-            endTime : true,
-            status : true
-          }
+          select: {
+            id: true,
+            consultationFee: true,
+            startTime: true,
+            endTime: true,
+            status: true,
+          },
         });
 
         return {
           ...doctor,
-          nextAvailable : nextSlot || null
-        }
+          nextAvailable: nextSlot || null,
+        };
       })
-    )
+    );
 
-    
     res.status(200).json(new ApiResponse(200, doctors));
-  }catch(error){
+  } catch (error) {
     res.status(500).json(new ApiError(500, "Internal Server Error", [error]));
     return;
-  }}
-
+  }
+};
 
 const getUpcomingAppointments = async (
   req: any,
   res: Response
 ): Promise<void> => {
-  const patientId = req.user?.patient?.id;
+  const patientId = (req as any).user?.patient?.id;
 
   try {
     if (!patientId) {
@@ -366,13 +365,13 @@ const getUpcomingAppointments = async (
     }
 
     const appointments = await prisma.appointment.findMany({
-      where: { 
+      where: {
         patientId,
-        timeSlot : {
-          startTime : {
-            gte : new Date()
-          }
-        }
+        timeSlot: {
+          startTime: {
+            gte: new Date(),
+          },
+        },
       },
       include: {
         doctor: {
@@ -380,7 +379,7 @@ const getUpcomingAppointments = async (
             user: {
               select: {
                 name: true,
-                profilePicture : true
+                profilePicture: true,
               },
             },
             specialty: true,
@@ -400,7 +399,7 @@ const getUpcomingAppointments = async (
       id: appointment.id,
       status: appointment.status,
       doctorName: appointment.doctor.user.name,
-      profilePicture : appointment.doctor.user.profilePicture,
+      profilePicture: appointment.doctor.user.profilePicture,
       specialty: appointment.doctor.specialty,
       location: appointment.doctor.clinicLocation,
       appointmentTime: {
@@ -417,11 +416,8 @@ const getUpcomingAppointments = async (
   }
 };
 
-const getPastAppointments = async (
-  req: any,
-  res: Response
-): Promise<void> => {
-  const patientId = req.user?.patient?.id;
+const getPastAppointments = async (req: any, res: Response): Promise<void> => {
+  const patientId = (req as any).user?.patient?.id;
 
   try {
     if (!patientId) {
@@ -432,13 +428,13 @@ const getPastAppointments = async (
     }
 
     const appointments = await prisma.appointment.findMany({
-      where: { 
+      where: {
         patientId,
-        timeSlot : {
-          startTime : {
-            lt : new Date()
-          }
-        }
+        timeSlot: {
+          startTime: {
+            lt: new Date(),
+          },
+        },
       },
       include: {
         doctor: {
@@ -446,7 +442,7 @@ const getPastAppointments = async (
             user: {
               select: {
                 name: true,
-                profilePicture : true
+                profilePicture: true,
               },
             },
             specialty: true,
@@ -466,7 +462,7 @@ const getPastAppointments = async (
       id: appointment.id,
       status: appointment.status,
       doctorName: appointment.doctor.user.name,
-      profilePicture : appointment.doctor.user.profilePicture,
+      profilePicture: appointment.doctor.user.profilePicture,
       specialty: appointment.doctor.specialty,
       location: appointment.doctor.clinicLocation,
       appointmentTime: {
@@ -483,9 +479,9 @@ const getPastAppointments = async (
   }
 };
 
-const cancelAppointment = async (req: UserRequest, res: Response) => {
-  const { appointmentId } = req.params;
-  const patientId = req.user?.patient?.id;
+const cancelAppointment = async (req: Request, res: Response) => {
+  const { appointmentId } = (req as any).params;
+  const patientId = (req as any).user?.patient?.id;
 
   try {
     if (!patientId) {
@@ -537,8 +533,8 @@ const cancelAppointment = async (req: UserRequest, res: Response) => {
   }
 };
 
-const viewPrescriptions = async (req: UserRequest, res: Response) => {
-  const patientId = req.user?.patient?.id;
+const viewPrescriptions = async (req: Request, res: Response) => {
+  const patientId = (req as any).user?.patient?.id;
 
   if (!patientId) {
     res
@@ -585,10 +581,10 @@ const viewPrescriptions = async (req: UserRequest, res: Response) => {
 function drawHorizontalLine(
   doc: PDFKit.PDFDocument,
   y: number,
-  color: string = '#cccccc'
+  color: string = "#cccccc"
 ): void {
   doc
-    .save() 
+    .save()
     .strokeColor(color)
     .lineWidth(0.5)
     .moveTo(40, y)
@@ -597,78 +593,80 @@ function drawHorizontalLine(
     .restore();
 }
 
-
-const prescriptionPdf = async (req: UserRequest, res: Response) => {
+const prescriptionPdf = async (req: Request, res: Response) => {
   try {
-    const prescriptionId = req.params.id as string;
+    const prescriptionId = (req as any).params.id as string;
 
-    if(!prescriptionId || !isValidUUID(prescriptionId)){
-      res.status(400).json(new ApiResponse(400 , "Invalid prescription id"));
+    if (!prescriptionId || !isValidUUID(prescriptionId)) {
+      res.status(400).json(new ApiResponse(400, "Invalid prescription id"));
       return;
     }
-    
+
     const prescription = await prisma.prescription.findUnique({
       where: { id: prescriptionId },
-      include : {
-        patient : {
-          select : {
-            user : {
-              select : {
-                name : true,
-                email : true,  
-              }
-            }
-          }
-        },
-        doctor : {
-          select : {
-            specialty : true,
-            clinicLocation : true,
-            user : {
-              select : {
-                name : true,
-                email : true
-              }
-            }
+      include: {
+        patient: {
+          select: {
+            user: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
           },
-        }
-      }
-    })
+        },
+        doctor: {
+          select: {
+            specialty: true,
+            clinicLocation: true,
+            user: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
 
-    if(!prescription){
-      res.status(404).json(new ApiResponse(404 , "Prescription not found"));
+    if (!prescription) {
+      res.status(404).json(new ApiResponse(404, "Prescription not found"));
       return;
     }
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename=prescription_${prescriptionId}.pdf`);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename=prescription_${prescriptionId}.pdf`
+    );
 
     const doc = new PDFDocument({
-      size: 'A5',
+      size: "A5",
       margins: { top: 40, bottom: 60, left: 40, right: 40 },
     });
 
     doc.pipe(res);
 
     doc
-      .font('Helvetica-Bold')
+      .font("Helvetica-Bold")
       .fontSize(22)
-      .fillColor('#333333')
-      .text('PRESCRIPTION', { align: 'center', underline: false });
-    
-    drawHorizontalLine(doc, 100, '#999999');
+      .fillColor("#333333")
+      .text("PRESCRIPTION", { align: "center", underline: false });
+
+    drawHorizontalLine(doc, 100, "#999999");
     doc.moveDown(2);
- 
+
     doc
-      .font('Helvetica-Bold')
+      .font("Helvetica-Bold")
       .fontSize(12)
-      .fillColor('#000000')
-      .text('Doctor Information:', { continued: false });
+      .fillColor("#000000")
+      .text("Doctor Information:", { continued: false });
     doc.moveDown(0.5);
 
     // Doctor Name + Specialty
     doc
-      .font('Helvetica')
+      .font("Helvetica")
       .fontSize(11)
       .text(`Name       : Dr. ${prescription.doctor.user.name}`, {
         indent: 10,
@@ -688,18 +686,18 @@ const prescriptionPdf = async (req: UserRequest, res: Response) => {
     // ------------------------
     // 3) Patient Section
     // ------------------------
-    drawHorizontalLine(doc, doc.y, '#dddddd');
+    drawHorizontalLine(doc, doc.y, "#dddddd");
     doc.moveDown(0.5);
 
     doc
-      .font('Helvetica-Bold')
+      .font("Helvetica-Bold")
       .fontSize(12)
-      .fillColor('#000000')
-      .text('Patient Information:');
+      .fillColor("#000000")
+      .text("Patient Information:");
     doc.moveDown(0.5);
 
     doc
-      .font('Helvetica')
+      .font("Helvetica")
       .fontSize(11)
       .text(`Name  : ${prescription.patient.user.name}`, {
         indent: 10,
@@ -713,59 +711,55 @@ const prescriptionPdf = async (req: UserRequest, res: Response) => {
     // ------------------------
     // 4) Date Issued & Prescription Text
     // ------------------------
-    drawHorizontalLine(doc, doc.y, '#dddddd');
+    drawHorizontalLine(doc, doc.y, "#dddddd");
     doc.moveDown(0.5);
 
     // Date Issued
     const formattedDate = new Date(prescription.dateIssued).toLocaleDateString(
-      'en-IN',
-      { day: '2-digit', month: 'long', year: 'numeric' }
+      "en-IN",
+      { day: "2-digit", month: "long", year: "numeric" }
     );
     doc
-      .font('Helvetica-Bold')
+      .font("Helvetica-Bold")
       .fontSize(12)
-      .fillColor('#000000')
+      .fillColor("#000000")
       .text(`Date Issued: `, { continued: true })
-      .font('Helvetica')
+      .font("Helvetica")
       .text(formattedDate);
 
     doc.moveDown(1);
 
     // Prescription Details Heading
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(12)
-      .text('Prescription Details:');
+    doc.font("Helvetica-Bold").fontSize(12).text("Prescription Details:");
     doc.moveDown(0.5);
 
     // Prescription Text Box (bordered)
     const startX = doc.x;
-    const boxWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const boxWidth =
+      doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const textOptions: PDFKit.Mixins.TextOptions = {
       width: boxWidth - 10,
-      align: 'left',
+      align: "left",
       indent: 5,
       lineGap: 4,
     };
 
     // Draw a light gray box background
     const boxTop = doc.y;
-    const estimatedHeight = doc.heightOfString(
-      prescription.prescriptionText,
-      textOptions
-    ) + 20;
+    const estimatedHeight =
+      doc.heightOfString(prescription.prescriptionText, textOptions) + 20;
     doc
       .save()
       .rect(startX - 5, boxTop - 5, boxWidth + 10, estimatedHeight + 10)
       .fillOpacity(0.05)
-      .fill('#cccccc')
+      .fill("#cccccc")
       .restore();
 
     // Write the prescription text inside the box
     doc
-      .font('Helvetica')
+      .font("Helvetica")
       .fontSize(11)
-      .fillColor('#000000')
+      .fillColor("#000000")
       .text(prescription.prescriptionText, startX, boxTop, textOptions);
 
     // Move to end of box
@@ -773,35 +767,34 @@ const prescriptionPdf = async (req: UserRequest, res: Response) => {
 
     const footerY = doc.page.height - doc.page.margins.bottom - 40;
     doc
-    .font('Helvetica')
-    .fontSize(9)
-    .fillColor('#666666')
-    .text(
-      `Generated on ${new Date().toLocaleString('en-IN', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })}`,
-      40,
-      footerY,
-      { align: 'left' }
-    );
-  
-  doc.text('Powered by CareXpert', 40, footerY + 15, {
-    align: 'left',
-  });
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor("#666666")
+      .text(
+        `Generated on ${new Date().toLocaleString("en-IN", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`,
+        40,
+        footerY,
+        { align: "left" }
+      );
+
+    doc.text("Powered by CareXpert", 40, footerY + 15, {
+      align: "left",
+    });
     doc.end();
-
   } catch (error) {
-    res.status(500).json(new ApiError(500 , "internal server error" , [error]));
+    res.status(500).json(new ApiError(500, "internal server error", [error]));
   }
-}
+};
 
-const cityRooms = async (req: UserRequest, res: Response) => {
+const cityRooms = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
     if (!userId) {
       return res.status(401).json(new ApiError(401, "User not authenticated"));
     }
@@ -849,5 +842,5 @@ export {
   viewPrescriptions,
   prescriptionPdf,
   fetchAllDoctors,
-  cityRooms
+  cityRooms,
 };

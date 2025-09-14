@@ -20,7 +20,7 @@ interface GeminiResponse {
 export const processSymptoms = async (req: any, res: any) => {
   try {
     const { symptoms, language = "en" } = req.body;
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
 
     if (
       !symptoms ||
@@ -142,7 +142,7 @@ Important: Respond with ONLY the JSON object, no additional text or formatting.`
  */
 export const getChatHistory = async (req: any, res: any) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
     const { page = 1, limit = 10 } = req.query;
 
     if (!userId) {
@@ -208,8 +208,8 @@ export const getChatHistory = async (req: any, res: any) => {
  */
 export const getChatById = async (req: any, res: any) => {
   try {
-    const { chatId } = req.params;
-    const userId = req.user?.id;
+    const { chatId } = (req as any).params;
+    const userId = (req as any).user?.id;
 
     if (!userId) {
       throw new ApiError(401, "User authentication required");

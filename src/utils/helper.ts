@@ -1,15 +1,30 @@
 import { Request, Response, NextFunction } from "express";
+import { Role } from "@prisma/client";
 import { ApiError } from "./ApiError";
 import { PrismaClient, User } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// Define Role enum to match Prisma schema
-export enum Role {
-  PATIENT = "PATIENT",
-  DOCTOR = "DOCTOR",
-  ADMIN = "ADMIN",
+// Define the user type that will be attached to the request
+export interface UserInRequest {
+  id: string;
+  role: Role;
+  name?: string;
+  email?: string;
+  // Add other common user properties here
+  [key: string]: any; // Allow additional properties
 }
+
+// Extend Express Request type to include our user
+declare global {
+  namespace Express {
+    interface Request {
+      user?: UserInRequest;
+    }
+  }
+}
+
+// Role enum is imported from @prisma/client
 
 export enum AppointmentStatus {
   PENDING = "PENDING",
@@ -17,41 +32,12 @@ export enum AppointmentStatus {
   CANCELLED = "CANCELLED",
 }
 
-type UserInContext = Pick<User, "id" | "name" | "email"> &
-  (
-    | {
-        role: Role.DOCTOR;
-        doctor: {
-          id: string;
-        };
-        patient?: never;
-      }
-    | {
-        role: Role.PATIENT;
-        patient: {
-          id: string;
-        };
-        doctor?: never;
-      }
-    | {
-        role: Role.ADMIN;
-        patient?: never;
-        doctor?: never;
-      }
-  );
-
-// Extend Express Request to include user with proper role type and relations
-export interface UserRequest extends Request {
-  user?: UserInContext;
-}
-
 export const isDoctor = (
   req: Request,
   res: Response,
   next: NextFunction
 ): void => {
-  const userReq = req as UserRequest;
-  if (!userReq.user || userReq.user.role !== Role.DOCTOR) {
+  if (!(req as any).user || (req as any).user.role !== Role.DOCTOR) {
     res
       .status(403)
       .json(new ApiError(403, "Unauthorized: Doctor access required"));
@@ -61,11 +47,11 @@ export const isDoctor = (
 };
 
 export const isPatient = (
-  req: UserRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): void => {
-  if (!req.user || req.user.role !== Role.PATIENT) {
+  if (!(req as any).user || (req as any).user.role !== Role.PATIENT) {
     res
       .status(403)
       .json(new ApiError(403, "Unauthorized: Patient access required"));
@@ -79,8 +65,7 @@ export const isAdmin = (
   res: Response,
   next: NextFunction
 ): void => {
-  const userReq = req as UserRequest;
-  if (!userReq.user || userReq.user.role !== Role.ADMIN) {
+  if (!(req as any).user || (req as any).user.role !== Role.ADMIN) {
     res
       .status(403)
       .json(new ApiError(403, "Unauthorized: Admin access required"));
@@ -90,13 +75,14 @@ export const isAdmin = (
 };
 
 export const doctorOrAdminAccess = (
-  req: UserRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): void => {
   if (
-    !req.user ||
-    (req.user.role !== Role.DOCTOR && req.user.role !== Role.ADMIN)
+    !(req as any).user ||
+    ((req as any).user.role !== Role.DOCTOR &&
+      (req as any).user.role !== Role.ADMIN)
   ) {
     res
       .status(403)

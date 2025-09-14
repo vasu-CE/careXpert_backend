@@ -26,19 +26,9 @@ const generateToken = async (userId: string) => {
   }
 };
 
-interface UserRequest extends Request {
-  body: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    password: string;
-    role: Role;
-    clinicLocation: string;
-    specialty: string;
-  };
-}
+// Using Request type from Express with proper typing
 
-const signup = async (req: UserRequest, res: any) => {
+const signup = async (req: Request, res: any) => {
   const {
     firstName,
     lastName,
@@ -157,7 +147,7 @@ const signup = async (req: UserRequest, res: any) => {
   }
 };
 
-const adminSignup = async (req: UserRequest, res: any) => {
+const adminSignup = async (req: Request, res: any) => {
   const { firstName, lastName, email, password } = req.body;
 
   const name = `${firstName || ""} ${lastName || ""}`.trim();
@@ -296,7 +286,7 @@ const login = async (req: any, res: any) => {
 
 const logout = async (req: any, res: any) => {
   try {
-    const id = req.user.id;
+    const id = (req as any).user.id;
 
     await prisma.user.update({
       where: { id },
@@ -318,9 +308,9 @@ const logout = async (req: any, res: any) => {
   }
 };
 
-const doctorProfile = async (req: UserRequest, res: Response) => {
+const doctorProfile = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id } = (req as any).params;
 
     if (!id || !isValidUUID(id)) {
       res.status(400).json(new ApiError(400, "Doctor id not found"));
@@ -348,9 +338,9 @@ const doctorProfile = async (req: UserRequest, res: Response) => {
   }
 };
 
-const userProfile = async (req: UserRequest, res: Response) => {
+const userProfile = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id } = (req as any).params;
 
     if (!id || !isValidUUID(id)) {
       res.status(400).json(new ApiError(400, "patient id no valid"));
@@ -381,7 +371,7 @@ const userProfile = async (req: UserRequest, res: Response) => {
 
 const updatePatientProfile = async (req: any, res: Response) => {
   try {
-    const id = req.user?.id;
+    const id = (req as any).user?.id;
     const { name } = req.body;
     const imageUrl = req.file?.path;
 
@@ -413,7 +403,7 @@ const updatePatientProfile = async (req: any, res: Response) => {
 
 const updateDoctorProfile = async (req: any, res: Response) => {
   try {
-    let id = req.user?.doctor?.id;
+    let id = (req as any).user?.doctor?.id;
     const { specialty, clinicLocation, experience, bio, name } = req.body;
     const imageUrl = req.file?.path;
 
@@ -467,7 +457,7 @@ const getAuthenticatedUserProfile = async (
   res: Response
 ): Promise<void> => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
 
     if (!userId) {
       res.status(401).json(new ApiError(401, "User not authenticated"));

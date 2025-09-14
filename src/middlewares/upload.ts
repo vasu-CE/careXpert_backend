@@ -13,6 +13,15 @@ const storage = new CloudinaryStorage({
     }
 });
 
-const upload = multer({storage});
+const storage2 = new CloudinaryStorage({
+    cloudinary,
+    params: async () => ({
+        folder: 'careXpert_reports',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
+    })
+});
 
-export default upload;
+const upload = multer({ storage });
+const upload2 = multer({storage:storage2});
+
+export { upload, upload2 };

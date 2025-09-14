@@ -42,16 +42,16 @@ router.patch(
   "/cancel-appointment/:appointmentId",
   isAuthenticated,
   isPatient,
-  cancelAppointment
+  cancelAppointment as any
 );
 
 router.get(
   "/view-Prescriptions",
   isAuthenticated,
   isPatient,
-  viewPrescriptions
+  viewPrescriptions as any
 );
-router.get("/prescription-pdf/:id", prescriptionPdf);
+router.get("/prescription-pdf/:id", prescriptionPdf as any);
 router.get("/fetchAllDoctors", fetchAllDoctors);
 router.get("/city-rooms", isAuthenticated, isPatient, cityRooms as any);
 
