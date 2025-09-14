@@ -24,6 +24,7 @@ enum AppointmentStatus {
   CONFIRMED
   COMPLETED
   CANCELLED
+  REJECTED
 }
 
 enum AppointmentType {
@@ -57,6 +58,7 @@ model User {
   rooms            Room[]        @relation("RoomMembers")
   adminRooms       Room[]        @relation("RoomAdmin")
   aiChats          AiChat[]      @relation("UserAiChats")
+  notifications    Notification[] @relation("UserNotifications")
   roomId           String?
 }
 
@@ -118,6 +120,7 @@ model Appointment {
   timeSlot TimeSlot? @relation(fields: [timeSlotId], references: [id])
 
   patientHistory PatientHistory? // <- only declare the field here, no `@relation`
+  notifications  Notification[] @relation("AppointmentNotifications")
 
   @@index([doctorId, date, time])
   @@index([patientId, date])
@@ -245,6 +248,24 @@ model AiChat {
   user User @relation("UserAiChats", fields: [userId], references: [id])
 
   @@index([userId, createdAt])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String   // APPOINTMENT_ACCEPTED, APPOINTMENT_REJECTED, APPOINTMENT_REMINDER
+  title       String
+  message     String
+  isRead      Boolean  @default(false)
+  appointmentId String? // Optional reference to appointment
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation("UserNotifications", fields: [userId], references: [id])
+  appointment Appointment? @relation("AppointmentNotifications", fields: [appointmentId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([createdAt])
 }
 
 

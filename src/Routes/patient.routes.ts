@@ -12,6 +12,9 @@ import {
   cityRooms,
   bookDirectAppointment,
   getAllPatientAppointments,
+  getPatientNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
 } from "../controllers/patient.controller";
 import { isAuthenticated } from "../middlewares/auth.middleware";
 import { isPatient } from "../utils/helper";
@@ -60,5 +63,10 @@ router.get("/city-rooms", isAuthenticated, isPatient, cityRooms as any);
 // New direct appointment booking routes
 router.post("/book-direct-appointment", isAuthenticated, isPatient, bookDirectAppointment);
 router.get("/all-appointments", isAuthenticated, isPatient, getAllPatientAppointments);
+
+// Notification routes
+router.get("/notifications", isAuthenticated, isPatient, getPatientNotifications);
+router.patch("/notifications/:notificationId/read", isAuthenticated, isPatient, markNotificationAsRead);
+router.patch("/notifications/mark-all-read", isAuthenticated, isPatient, markAllNotificationsAsRead);
 
 export default router;

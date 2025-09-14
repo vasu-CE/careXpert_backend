@@ -606,6 +606,272 @@ const getAllDoctorAppointments = async (
   }
 };
 
+// New appointment request management functions
+const getPendingAppointmentRequests = async (req: Request, res: Response): Promise<void> => {
+  const userId = (req as any).user?.id;
+
+  try {
+    const doctor = await prisma.doctor.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!doctor) {
+      res.status(400).json(new ApiError(400, "No doctor found!"));
+      return;
+    }
+
+    const pendingRequests = await prisma.appointment.findMany({
+      where: {
+        doctorId: doctor.id,
+        status: AppointmentStatus.PENDING,
+      },
+      include: {
+        patient: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true,
+                profilePicture: true,
+              },
+            },
+          },
+        },
+        timeSlot: true,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    const formattedRequests = pendingRequests.map((request) => ({
+      id: request.id,
+      status: request.status,
+      appointmentType: request.appointmentType,
+      date: request.date,
+      time: request.time,
+      notes: request.notes,
+      consultationFee: request.consultationFee,
+      createdAt: request.createdAt,
+      patient: {
+        id: request.patient.id,
+        name: request.patient.user.name,
+        email: request.patient.user.email,
+        profilePicture: request.patient.user.profilePicture,
+        medicalHistory: request.patient.medicalHistory,
+      },
+      timeSlot: request.timeSlot ? {
+        id: request.timeSlot.id,
+        startTime: request.timeSlot.startTime,
+        endTime: request.timeSlot.endTime,
+        consultationFee: request.timeSlot.consultationFee,
+      } : null,
+    }));
+
+    res.status(200).json(new ApiResponse(200, formattedRequests));
+  } catch (error) {
+    console.error("Error fetching pending requests:", error);
+    res.status(500).json(new ApiError(500, "Failed to fetch pending requests!", [error]));
+  }
+};
+
+const respondToAppointmentRequest = async (req: Request, res: Response): Promise<void> => {
+  const { appointmentId } = req.params;
+  const { action, rejectionReason, alternativeSlots } = req.body; // action: "accept" or "reject"
+  const userId = (req as any).user?.id;
+
+  try {
+    if (!["accept", "reject"].includes(action)) {
+      res.status(400).json(new ApiError(400, "Action must be 'accept' or 'reject'"));
+      return;
+    }
+
+    const doctor = await prisma.doctor.findUnique({
+      where: { userId },
+      select: { id: true, user: { select: { name: true } } },
+    });
+
+    if (!doctor) {
+      res.status(400).json(new ApiError(400, "No doctor found!"));
+      return;
+    }
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        patient: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        timeSlot: true,
+      },
+    });
+
+    if (!appointment || appointment.doctorId !== doctor.id) {
+      res.status(404).json(new ApiError(404, "Appointment request not found!"));
+      return;
+    }
+
+    if (appointment.status !== AppointmentStatus.PENDING) {
+      res.status(400).json(new ApiError(400, "This appointment request has already been processed!"));
+      return;
+    }
+
+    let updatedAppointment;
+    let notification;
+
+    if (action === "accept") {
+      // Accept the appointment
+      updatedAppointment = await prisma.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          status: AppointmentStatus.CONFIRMED,
+        },
+      });
+
+      // Create notification for patient
+      notification = await prisma.notification.create({
+        data: {
+          userId: appointment.patient.user.id,
+          type: "APPOINTMENT_ACCEPTED",
+          title: "Appointment Confirmed",
+          message: `Your appointment with Dr. ${doctor.user.name} has been confirmed for ${new Date(appointment.date).toLocaleDateString()} at ${appointment.time}.`,
+          appointmentId: appointment.id,
+        },
+      });
+
+      // If there's a timeSlot, mark it as booked
+      if (appointment.timeSlotId) {
+        await prisma.timeSlot.update({
+          where: { id: appointment.timeSlotId },
+          data: { status: TimeSlotStatus.BOOKED },
+        });
+      }
+
+    } else {
+      // Reject the appointment
+      updatedAppointment = await prisma.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          status: AppointmentStatus.REJECTED,
+          notes: rejectionReason || "Appointment request rejected by doctor",
+        },
+      });
+
+      // Create notification for patient with alternative slots
+      let message = `Your appointment request with Dr. ${doctor.user.name} has been declined.`;
+      if (rejectionReason) {
+        message += ` Reason: ${rejectionReason}`;
+      }
+      if (alternativeSlots && alternativeSlots.length > 0) {
+        message += ` Suggested alternative time slots: ${alternativeSlots.join(", ")}`;
+      }
+
+      notification = await prisma.notification.create({
+        data: {
+          userId: appointment.patient.user.id,
+          type: "APPOINTMENT_REJECTED",
+          title: "Appointment Request Declined",
+          message,
+          appointmentId: appointment.id,
+        },
+      });
+
+      // If there's a timeSlot, make it available again
+      if (appointment.timeSlotId) {
+        await prisma.timeSlot.update({
+          where: { id: appointment.timeSlotId },
+          data: { status: TimeSlotStatus.AVAILABLE },
+        });
+      }
+    }
+
+    res.status(200).json(new ApiResponse(200, {
+      appointment: updatedAppointment,
+      notification,
+      message: `Appointment request ${action}ed successfully`,
+    }));
+
+  } catch (error) {
+    console.error("Error responding to appointment request:", error);
+    res.status(500).json(new ApiError(500, "Failed to process appointment request!", [error]));
+  }
+};
+
+const getDoctorNotifications = async (req: Request, res: Response): Promise<void> => {
+  const userId = (req as any).user?.id;
+  const { isRead } = req.query;
+
+  try {
+    const filters: any = { userId };
+    if (isRead !== undefined) {
+      filters.isRead = isRead === "true";
+    }
+
+    const notifications = await prisma.notification.findMany({
+      where: filters,
+      include: {
+        appointment: {
+          include: {
+            patient: {
+              include: {
+                user: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.status(200).json(new ApiResponse(200, notifications));
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json(new ApiError(500, "Failed to fetch notifications!", [error]));
+  }
+};
+
+const markNotificationAsRead = async (req: Request, res: Response): Promise<void> => {
+  const { notificationId } = req.params;
+  const userId = (req as any).user?.id;
+
+  try {
+    const notification = await prisma.notification.updateMany({
+      where: {
+        id: notificationId,
+        userId,
+      },
+      data: {
+        isRead: true,
+      },
+    });
+
+    if (notification.count === 0) {
+      res.status(404).json(new ApiError(404, "Notification not found!"));
+      return;
+    }
+
+    res.status(200).json(new ApiResponse(200, { message: "Notification marked as read" }));
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
+    res.status(500).json(new ApiError(500, "Failed to mark notification as read!", [error]));
+  }
+};
+
 export {
   viewDoctorAppointment,
   updateAppointmentStatus,
@@ -618,4 +884,8 @@ export {
   cityRooms,
   createRoom,
   getAllDoctorAppointments,
+  getPendingAppointmentRequests,
+  respondToAppointmentRequest,
+  getDoctorNotifications,
+  markNotificationAsRead,
 };

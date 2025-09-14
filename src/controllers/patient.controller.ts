@@ -300,7 +300,7 @@ const bookAppointment = async (req: any, res: Response): Promise<void> => {
     res.status(200).json(
       new ApiResponse(200, {
         data: formattedAppointment,
-        message: "Appointment booked successfully",
+        message: "Appointment request sent successfully",
       })
     );
   } catch (error) {
@@ -1004,7 +1004,7 @@ const bookDirectAppointment = async (
     res.status(201).json(
       new ApiResponse(201, {
         data: formattedAppointment,
-        message: "Appointment booked successfully",
+        message: "Appointment request sent successfully",
       })
     );
   } catch (error) {
@@ -1081,6 +1081,94 @@ const getAllPatientAppointments = async (
   }
 };
 
+// Notification functions for patients
+const getPatientNotifications = async (req: Request, res: Response): Promise<void> => {
+  const userId = (req as any).user?.id;
+  const { isRead } = req.query;
+
+  try {
+    const filters: any = { userId };
+    if (isRead !== undefined) {
+      filters.isRead = isRead === "true";
+    }
+
+    const notifications = await prisma.notification.findMany({
+      where: filters,
+      include: {
+        appointment: {
+          include: {
+            doctor: {
+              include: {
+                user: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.status(200).json(new ApiResponse(200, notifications));
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json(new ApiError(500, "Failed to fetch notifications!", [error]));
+  }
+};
+
+const markNotificationAsRead = async (req: Request, res: Response): Promise<void> => {
+  const { notificationId } = req.params;
+  const userId = (req as any).user?.id;
+
+  try {
+    const notification = await prisma.notification.updateMany({
+      where: {
+        id: notificationId,
+        userId,
+      },
+      data: {
+        isRead: true,
+      },
+    });
+
+    if (notification.count === 0) {
+      res.status(404).json(new ApiError(404, "Notification not found!"));
+      return;
+    }
+
+    res.status(200).json(new ApiResponse(200, { message: "Notification marked as read" }));
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
+    res.status(500).json(new ApiError(500, "Failed to mark notification as read!", [error]));
+  }
+};
+
+const markAllNotificationsAsRead = async (req: Request, res: Response): Promise<void> => {
+  const userId = (req as any).user?.id;
+
+  try {
+    await prisma.notification.updateMany({
+      where: {
+        userId,
+        isRead: false,
+      },
+      data: {
+        isRead: true,
+      },
+    });
+
+    res.status(200).json(new ApiResponse(200, { message: "All notifications marked as read" }));
+  } catch (error) {
+    console.error("Error marking all notifications as read:", error);
+    res.status(500).json(new ApiError(500, "Failed to mark all notifications as read!", [error]));
+  }
+};
+
 export {
   searchDoctors,
   availableTimeSlots,
@@ -1094,4 +1182,7 @@ export {
   cityRooms,
   bookDirectAppointment,
   getAllPatientAppointments,
+  getPatientNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
 };

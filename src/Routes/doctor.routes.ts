@@ -11,6 +11,10 @@ import {
   cityRooms,
   createRoom,
   getAllDoctorAppointments,
+  getPendingAppointmentRequests,
+  respondToAppointmentRequest,
+  getDoctorNotifications,
+  markNotificationAsRead,
 } from "../controllers/doctor.controller";
 import { isDoctor } from "../utils/helper";
 import { isAuthenticated } from "../middlewares/auth.middleware";
@@ -61,6 +65,36 @@ router.get(
   isAuthenticated,
   isDoctor,
   getAllDoctorAppointments as any
+);
+
+// New appointment request management routes
+router.get(
+  "/pending-requests",
+  isAuthenticated,
+  isDoctor,
+  getPendingAppointmentRequests
+);
+
+router.patch(
+  "/appointment-requests/:appointmentId/respond",
+  isAuthenticated,
+  isDoctor,
+  respondToAppointmentRequest
+);
+
+// Notification routes
+router.get(
+  "/notifications",
+  isAuthenticated,
+  isDoctor,
+  getDoctorNotifications
+);
+
+router.patch(
+  "/notifications/:notificationId/read",
+  isAuthenticated,
+  isDoctor,
+  markNotificationAsRead
 );
 
 export default router;
