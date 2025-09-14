@@ -21,8 +21,14 @@ enum Role {
 
 enum AppointmentStatus {
   PENDING
+  CONFIRMED
   COMPLETED
   CANCELLED
+}
+
+enum AppointmentType {
+  ONLINE
+  OFFLINE
 }
 
 enum TimeSlotStatus {
@@ -97,16 +103,24 @@ model Appointment {
   id              String            @id @default(uuid())
   patientId       String
   doctorId        String
-  timeSlotId      String
+  timeSlotId      String?           // Made optional for direct booking
+  date            DateTime          // YYYY-MM-DD format
+  time            String            // HH:mm format
+  appointmentType AppointmentType   @default(OFFLINE)
   status          AppointmentStatus @default(PENDING)
   consultationFee Int?              @default(0)
   notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
-  patient  Patient  @relation("PatientAppointments", fields: [patientId], references: [id])
-  doctor   Doctor   @relation("DoctorAppointments", fields: [doctorId], references: [id])
-  timeSlot TimeSlot @relation(fields: [timeSlotId], references: [id])
+  patient  Patient   @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor   Doctor    @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  timeSlot TimeSlot? @relation(fields: [timeSlotId], references: [id])
 
   patientHistory PatientHistory? // <- only declare the field here, no `@relation`
+
+  @@index([doctorId, date, time])
+  @@index([patientId, date])
 }
 
 model Prescription {
@@ -155,8 +169,8 @@ model TimeSlot {
   updatedAt       DateTime       @updatedAt
 
   // Relations
-  doctor      Doctor        @relation(fields: [doctorId], references: [id])
-  appointment Appointment[]
+  doctor      Doctor         @relation(fields: [doctorId], references: [id])
+  appointment Appointment[]  // Optional relationship for backward compatibility
 
   @@unique([doctorId, startTime])
   @@index([doctorId, startTime])

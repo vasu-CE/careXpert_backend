@@ -4,6 +4,7 @@ import {
   AppointmentStatus,
   PrismaClient,
   TimeSlotStatus,
+  AppointmentType,
 } from "@prisma/client";
 import { ApiResponse } from "../utils/ApiResponse";
 import { ApiError } from "../utils/ApiError";
@@ -75,8 +76,8 @@ const viewDoctorAppointment = async (
       profilePicture: appointment.patient.user.profilePicture,
       notes: appointment.notes,
       appointmentTime: {
-        startTime: appointment.timeSlot.startTime,
-        endTime: appointment.timeSlot.endTime,
+        startTime: appointment.timeSlot?.startTime,
+        endTime: appointment.timeSlot?.endTime,
       },
     }));
 
@@ -119,12 +120,14 @@ const updateAppointmentStatus = async (req: Request, res: Response) => {
       },
     });
     if (status === "CANCELLED") {
-      await prisma.timeSlot.update({
-        where: { id: appointment.timeSlotId },
-        data: {
-          status: TimeSlotStatus.AVAILABLE,
-        },
-      });
+      if (appointment.timeSlotId) {
+        await prisma.timeSlot.update({
+          where: { id: appointment.timeSlotId },
+          data: {
+            status: TimeSlotStatus.AVAILABLE,
+          },
+        });
+      }
     }
     if (status === "COMPLETED" && prescriptionText) {
       const prescription = await prisma.prescription.create({
@@ -258,20 +261,22 @@ const cancelAppointment = async (req: Request, res: any) => {
       res.status(400).json(new ApiError(400, "Appointment already Cancelled!"));
     }
 
-    await prisma.$transaction([
-      prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          status: AppointmentStatus.CANCELLED,
-        },
-      }),
-      prisma.timeSlot.update({
-        where: { id: appointment?.timeSlotId },
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: {
+        status: AppointmentStatus.CANCELLED,
+      },
+    });
+
+    // Update time slot if it exists
+    if (appointment?.timeSlotId) {
+      await prisma.timeSlot.update({
+        where: { id: appointment.timeSlotId },
         data: {
           status: TimeSlotStatus.AVAILABLE,
         },
-      }),
-    ]);
+      });
+    }
     return res
       .status(200)
       .json(new ApiResponse(500, "Appointment Cancelled successfully!"));
@@ -511,6 +516,85 @@ const createRoom = async (req: Request, res: Response) => {
     res.status(500).json(new ApiError(500, "Internal server error", [err]));
     return;
   }
+}
+
+const getAllDoctorAppointments = async (req: UserRequest, res: Response): Promise<void> => {
+  const userId = req.user?.id;
+  const { status, upcoming } = req.query; // status=PENDING/CONFIRMED/COMPLETED/CANCELLED, upcoming=true
+
+  try {
+    const doctor = await prisma.doctor.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!doctor) {
+      res.status(400).json(new ApiError(400, "No doctor found!"));
+      return;
+    }
+
+    const filters: any = {
+      doctorId: doctor.id,
+    };
+
+    if (status && typeof status === "string") {
+      filters.status = status as AppointmentStatus;
+    }
+
+    if (upcoming === "true") {
+      filters.date = {
+        gte: new Date(),
+      };
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where: filters,
+      include: {
+        patient: {
+          select: {
+            id: true,
+            user: {
+              select: {
+                name: true,
+                profilePicture: true,
+                email: true,
+              },
+            },
+            medicalHistory: true,
+          },
+        },
+      },
+      orderBy: [
+        { date: "asc" },
+        { time: "asc" },
+      ],
+    });
+
+    const formattedAppointments = appointments.map((appointment) => ({
+      id: appointment.id,
+      status: appointment.status,
+      appointmentType: appointment.appointmentType,
+      date: appointment.date,
+      time: appointment.time,
+      notes: appointment.notes,
+      consultationFee: appointment.consultationFee,
+      createdAt: appointment.createdAt,
+      updatedAt: appointment.updatedAt,
+      patient: {
+        id: appointment.patient.id,
+        name: appointment.patient.user.name,
+        profilePicture: appointment.patient.user.profilePicture,
+        email: appointment.patient.user.email,
+        medicalHistory: appointment.patient.medicalHistory,
+      },
+    }));
+
+    res.status(200).json(new ApiResponse(200, formattedAppointments));
+  } catch (error) {
+    console.error("Error fetching doctor appointments:", error);
+    res.status(500).json(new ApiError(500, "Failed to fetch appointments!", [error]));
+  }
+};
 };
 
 export {
@@ -523,5 +607,7 @@ export {
   updateTimeSlot,
   deleteTimeSlot,
   cityRooms,
+  createRoom,
+  getAllDoctorAppointments
   createRoom,
 };
