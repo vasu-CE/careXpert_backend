@@ -3,7 +3,7 @@ import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import prisma from "../utils/prismClient";
 import { isValidUUID, UserRequest } from "../utils/helper";
-import { TimeSlotStatus, AppointmentStatus, Role } from "@prisma/client";
+import { TimeSlotStatus, AppointmentStatus, Role, AppointmentType } from "@prisma/client";
 import PDFDocument from 'pdfkit';
 import fs from 'fs'; 
 
@@ -241,6 +241,8 @@ const bookAppointment = async (req: any, res: Response): Promise<void> => {
             patientId: patient.id,
             doctorId: timeSlot.doctorId,
             timeSlotId,
+            date: timeSlot.startTime,
+            time: timeSlot.startTime.toTimeString().slice(0, 5), // Extract HH:mm format
             status: AppointmentStatus.PENDING,
           },
           include: {
@@ -285,8 +287,8 @@ const bookAppointment = async (req: any, res: Response): Promise<void> => {
       specialty: result?.appointment.doctor.specialty,
       location: result?.appointment.doctor.clinicLocation,
       appointmentTime: {
-        start: result?.appointment.timeSlot.startTime,
-        end: result?.appointment.timeSlot.endTime,
+        start: result?.appointment.timeSlot?.startTime,
+        end: result?.appointment.timeSlot?.endTime,
       },
     };
 
@@ -404,8 +406,8 @@ const getUpcomingAppointments = async (
       specialty: appointment.doctor.specialty,
       location: appointment.doctor.clinicLocation,
       appointmentTime: {
-        start: appointment.timeSlot.startTime,
-        end: appointment.timeSlot.endTime,
+        start: appointment.timeSlot?.startTime,
+        end: appointment.timeSlot?.endTime,
       },
     }));
 
@@ -470,8 +472,8 @@ const getPastAppointments = async (
       specialty: appointment.doctor.specialty,
       location: appointment.doctor.clinicLocation,
       appointmentTime: {
-        start: appointment.timeSlot.startTime,
-        end: appointment.timeSlot.endTime,
+        start: appointment.timeSlot?.startTime,
+        end: appointment.timeSlot?.endTime,
       },
     }));
 
@@ -509,20 +511,22 @@ const cancelAppointment = async (req: UserRequest, res: Response) => {
       return;
     }
 
-    await prisma.$transaction([
-      prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          status: AppointmentStatus.CANCELLED,
-        },
-      }),
-      prisma.timeSlot.update({
-        where: { id: appointment?.timeSlotId },
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: {
+        status: AppointmentStatus.CANCELLED,
+      },
+    });
+
+    // Update time slot if it exists
+    if (appointment?.timeSlotId) {
+      await prisma.timeSlot.update({
+        where: { id: appointment.timeSlotId },
         data: {
           status: TimeSlotStatus.AVAILABLE,
         },
-      }),
-    ]);
+      });
+    }
     res
       .status(200)
       .json(new ApiResponse(500, "Appointment Cancelled successfully!"));
@@ -839,6 +843,220 @@ const cityRooms = async (req: UserRequest, res: Response) => {
   }
 };
 
+// New direct appointment booking functions
+const bookDirectAppointment = async (req: any, res: Response): Promise<void> => {
+  const { doctorId, date, time, appointmentType, notes } = req.body;
+  const patientId = req.user?.patient?.id;
+
+  try {
+    if (!patientId) {
+      res.status(400).json(new ApiError(400, "Only patients can book appointments!"));
+      return;
+    }
+
+    // Validate required fields
+    if (!doctorId || !date || !time) {
+      res.status(400).json(new ApiError(400, "doctorId, date, and time are required!"));
+      return;
+    }
+
+    // Validate appointment type
+    if (appointmentType && !["ONLINE", "OFFLINE"].includes(appointmentType)) {
+      res.status(400).json(new ApiError(400, "appointmentType must be 'ONLINE' or 'OFFLINE'!"));
+      return;
+    }
+
+    // Validate date format (should be YYYY-MM-DD)
+    const appointmentDate = new Date(date);
+    if (isNaN(appointmentDate.getTime())) {
+      res.status(400).json(new ApiError(400, "Invalid date format. Use YYYY-MM-DD!"));
+      return;
+    }
+
+    // Validate time format (should be HH:mm)
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(time)) {
+      res.status(400).json(new ApiError(400, "Invalid time format. Use HH:mm!"));
+      return;
+    }
+
+    // Check if doctor exists
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: doctorId },
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!doctor) {
+      res.status(404).json(new ApiError(404, "Doctor not found!"));
+      return;
+    }
+
+    // Check if patient exists
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId },
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!patient) {
+      res.status(404).json(new ApiError(404, "Patient not found!"));
+      return;
+    }
+
+    // Check for conflicting appointments (same doctor, date, and time)
+    const existingAppointment = await prisma.appointment.findFirst({
+      where: {
+        doctorId,
+        date: appointmentDate,
+        time,
+        status: {
+          in: [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED],
+        },
+      },
+    });
+
+    if (existingAppointment) {
+      res.status(409).json(new ApiError(409, "An appointment already exists for this doctor at the specified date and time!"));
+      return;
+    }
+
+    // Create the appointment
+    const appointment = await prisma.appointment.create({
+      data: {
+        patientId,
+        doctorId,
+        date: appointmentDate,
+        time,
+        appointmentType: appointmentType || AppointmentType.OFFLINE,
+        status: AppointmentStatus.PENDING,
+        notes: notes || undefined,
+      },
+      include: {
+        patient: {
+          select: {
+            user: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        doctor: {
+          select: {
+            user: {
+              select: {
+                name: true,
+              },
+            },
+            specialty: true,
+            clinicLocation: true,
+          },
+        },
+      },
+    });
+
+    // Format the response
+    const formattedAppointment = {
+      id: appointment.id,
+      status: appointment.status,
+      appointmentType: appointment.appointmentType,
+      date: appointment.date,
+      time: appointment.time,
+      notes: appointment.notes,
+      patientName: appointment.patient.user.name,
+      doctorName: appointment.doctor.user.name,
+      specialty: appointment.doctor.specialty,
+      location: appointment.doctor.clinicLocation,
+      createdAt: appointment.createdAt,
+    };
+
+    res.status(201).json(
+      new ApiResponse(201, {
+        data: formattedAppointment,
+        message: "Appointment booked successfully",
+      })
+    );
+  } catch (error) {
+    console.error("Error booking appointment:", error);
+    res.status(500).json(new ApiError(500, "Internal Server Error", [error]));
+  }
+};
+
+const getAllPatientAppointments = async (req: any, res: Response): Promise<void> => {
+  const patientId = req.user?.patient?.id;
+
+  try {
+    if (!patientId) {
+      res.status(400).json(new ApiError(400, "Only patients can view their appointments!"));
+      return;
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where: { patientId },
+      include: {
+        doctor: {
+          select: {
+            user: {
+              select: {
+                name: true,
+                profilePicture: true,
+              },
+            },
+            specialty: true,
+            clinicLocation: true,
+            experience: true,
+            education: true,
+            bio: true,
+            languages: true,
+          },
+        },
+      },
+      orderBy: [
+        { date: "asc" },
+        { time: "asc" },
+      ],
+    });
+
+    const formattedAppointments = appointments.map((appointment) => ({
+      id: appointment.id,
+      status: appointment.status,
+      appointmentType: appointment.appointmentType,
+      date: appointment.date,
+      time: appointment.time,
+      notes: appointment.notes,
+      consultationFee: appointment.consultationFee,
+      createdAt: appointment.createdAt,
+      doctor: {
+        id: appointment.doctorId,
+        name: appointment.doctor.user.name,
+        profilePicture: appointment.doctor.user.profilePicture,
+        specialty: appointment.doctor.specialty,
+        clinicLocation: appointment.doctor.clinicLocation,
+        experience: appointment.doctor.experience,
+        education: appointment.doctor.education,
+        bio: appointment.doctor.bio,
+        languages: appointment.doctor.languages,
+      },
+    }));
+
+    res.status(200).json(new ApiResponse(200, formattedAppointments));
+  } catch (error) {
+    console.error("Error fetching appointments:", error);
+    res.status(500).json(new ApiError(500, "Failed to fetch appointments!", [error]));
+  }
+};
+
 export {
   searchDoctors,
   availableTimeSlots,
@@ -849,5 +1067,7 @@ export {
   viewPrescriptions,
   prescriptionPdf,
   fetchAllDoctors,
-  cityRooms
+  cityRooms,
+  bookDirectAppointment,
+  getAllPatientAppointments
 };

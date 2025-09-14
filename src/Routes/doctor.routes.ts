@@ -1,5 +1,5 @@
 import { Router } from "express";
-import {viewDoctorAppointment , updateAppointmentStatus, addTimeslot,viewTimeslots, cancelAppointment, getPatientHistory, updateTimeSlot, deleteTimeSlot, cityRooms, createRoom} from "../controllers/doctor.controller";
+import {viewDoctorAppointment , updateAppointmentStatus, addTimeslot,viewTimeslots, cancelAppointment, getPatientHistory, updateTimeSlot, deleteTimeSlot, cityRooms, createRoom, getAllDoctorAppointments} from "../controllers/doctor.controller";
 import { isDoctor } from "../utils/helper";
 import { isAuthenticated } from "../middlewares/auth.middleware";
 
@@ -17,5 +17,9 @@ router.delete("/delete-timeSlot/:timeSlotId",isAuthenticated,isDoctor,deleteTime
 
 router.get('/city-rooms',isAuthenticated , isDoctor , cityRooms);
 router.put("/create-room" , isAuthenticated , isDoctor , createRoom);
+
+// New direct appointment routes
+router.get("/all-appointments", isAuthenticated, isDoctor, getAllDoctorAppointments);
+
 export default router;
 
