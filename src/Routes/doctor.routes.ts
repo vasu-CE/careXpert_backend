@@ -15,6 +15,8 @@ import {
   respondToAppointmentRequest,
   getDoctorNotifications,
   markNotificationAsRead,
+  addPrescriptionToAppointment,
+  markAppointmentCompleted,
 } from "../controllers/doctor.controller";
 import { isDoctor } from "../utils/helper";
 import { isAuthenticated } from "../middlewares/auth.middleware";
@@ -80,6 +82,20 @@ router.patch(
   isAuthenticated,
   isDoctor,
   respondToAppointmentRequest
+);
+
+// Prescription and completion routes
+router.post(
+  "/appointments/:appointmentId/prescription",
+  isAuthenticated,
+  isDoctor,
+  addPrescriptionToAppointment
+);
+router.patch(
+  "/appointments/:appointmentId/complete",
+  isAuthenticated,
+  isDoctor,
+  markAppointmentCompleted
 );
 
 // Notification routes

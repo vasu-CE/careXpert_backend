@@ -50,14 +50,14 @@ model User {
   updatedAt      DateTime @updatedAt
 
   // Role-specific relations
-  patient          Patient?      @relation("PatientUser")
-  doctor           Doctor?       @relation("DoctorUser")
-  admin            Admin?        @relation("AdminUser")
-  sentMessages     ChatMessage[] @relation("SentMessages")
-  receivedMessages ChatMessage[] @relation("ReceivedMessages")
-  rooms            Room[]        @relation("RoomMembers")
-  adminRooms       Room[]        @relation("RoomAdmin")
-  aiChats          AiChat[]      @relation("UserAiChats")
+  patient          Patient?       @relation("PatientUser")
+  doctor           Doctor?        @relation("DoctorUser")
+  admin            Admin?         @relation("AdminUser")
+  sentMessages     ChatMessage[]  @relation("SentMessages")
+  receivedMessages ChatMessage[]  @relation("ReceivedMessages")
+  rooms            Room[]         @relation("RoomMembers")
+  adminRooms       Room[]         @relation("RoomAdmin")
+  aiChats          AiChat[]       @relation("UserAiChats")
   notifications    Notification[] @relation("UserNotifications")
   roomId           String?
 }
@@ -65,7 +65,7 @@ model User {
 model Patient {
   id             String           @id @default(uuid())
   userId         String           @unique
-  location       String?          // City/State/Country for patients
+  location       String? // City/State/Country for patients
   medicalHistory String?
   symptoms       Symptom[]
   appointments   Appointment[]    @relation("PatientAppointments")
@@ -106,25 +106,29 @@ model Appointment {
   id              String            @id @default(uuid())
   patientId       String
   doctorId        String
-  timeSlotId      String?           // Made optional for direct booking
-  date            DateTime          // YYYY-MM-DD format
-  time            String            // HH:mm format
+  timeSlotId      String? // Made optional for direct booking
+  date            DateTime // YYYY-MM-DD format
+  time            String // HH:mm format
   appointmentType AppointmentType   @default(OFFLINE)
   status          AppointmentStatus @default(PENDING)
   consultationFee Int?              @default(0)
   notes           String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  // Link created prescription to this appointment (optional)
+  prescriptionId  String?
 
-  patient  Patient   @relation("PatientAppointments", fields: [patientId], references: [id])
-  doctor   Doctor    @relation("DoctorAppointments", fields: [doctorId], references: [id])
-  timeSlot TimeSlot? @relation(fields: [timeSlotId], references: [id])
+  patient      Patient       @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor       Doctor        @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  timeSlot     TimeSlot?     @relation(fields: [timeSlotId], references: [id])
+  prescription Prescription? @relation(fields: [prescriptionId], references: [id])
 
   patientHistory PatientHistory? // <- only declare the field here, no `@relation`
-  notifications  Notification[] @relation("AppointmentNotifications")
+  notifications  Notification[]  @relation("AppointmentNotifications")
 
   @@index([doctorId, date, time])
   @@index([patientId, date])
+  @@index([prescriptionId])
 }
 
 model Prescription {
@@ -137,6 +141,7 @@ model Prescription {
   doctor         Doctor          @relation(fields: [doctorId], references: [id])
   patient        Patient         @relation(fields: [patientId], references: [id])
   patientHistory PatientHistory?
+  Appointment    Appointment[]
 }
 
 model Symptom {
@@ -173,8 +178,8 @@ model TimeSlot {
   updatedAt       DateTime       @updatedAt
 
   // Relations
-  doctor      Doctor         @relation(fields: [doctorId], references: [id])
-  appointment Appointment[]  // Optional relationship for backward compatibility
+  doctor      Doctor        @relation(fields: [doctorId], references: [id])
+  appointment Appointment[] // Optional relationship for backward compatibility
 
   @@unique([doctorId, startTime])
   @@index([doctorId, startTime])
@@ -211,24 +216,24 @@ model Room {
 }
 
 model Report {
-  id                String   @id @default(uuid())
-  patientId         String
-  filename          String
-  fileUrl           String
-  extractedText     String?
-  summary           String?
-  abnormalValues    Json?    // Store as JSON for flexibility
+  id                 String   @id @default(uuid())
+  patientId          String
+  filename           String
+  fileUrl            String
+  extractedText      String?
+  summary            String?
+  abnormalValues     Json? // Store as JSON for flexibility
   possibleConditions String[] // Array of possible conditions
-  recommendation    String?
-  disclaimer        String?
-  mimeType          String
-  fileSize          Int      // in bytes
-  status            String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
-  error             String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  recommendation     String?
+  disclaimer         String?
+  mimeType           String
+  fileSize           Int // in bytes
+  status             String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  error              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  patient           Patient  @relation(fields: [patientId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
 
   @@index([patientId])
   @@index([status])
@@ -236,15 +241,15 @@ model Report {
 }
 
 model AiChat {
-  id                String   @id @default(uuid())
-  userId            String
-  userMessage       String
-  aiResponse        Json     // Stores the complete JSON response from Gemini
-  probableCauses    String[] // Extracted from AI response for easier querying
-  severity          String   // mild, moderate, severe
-  recommendation    String   // Extracted recommendation
-  disclaimer        String   // Extracted disclaimer
-  createdAt         DateTime @default(now())
+  id             String   @id @default(uuid())
+  userId         String
+  userMessage    String
+  aiResponse     Json // Stores the complete JSON response from Gemini
+  probableCauses String[] // Extracted from AI response for easier querying
+  severity       String // mild, moderate, severe
+  recommendation String // Extracted recommendation
+  disclaimer     String // Extracted disclaimer
+  createdAt      DateTime @default(now())
 
   user User @relation("UserAiChats", fields: [userId], references: [id])
 
@@ -252,21 +257,19 @@ model AiChat {
 }
 
 model Notification {
-  id          String   @id @default(uuid())
-  userId      String
-  type        String   // APPOINTMENT_ACCEPTED, APPOINTMENT_REJECTED, APPOINTMENT_REMINDER
-  title       String
-  message     String
-  isRead      Boolean  @default(false)
+  id            String   @id @default(uuid())
+  userId        String
+  type          String // APPOINTMENT_ACCEPTED, APPOINTMENT_REJECTED, APPOINTMENT_REMINDER
+  title         String
+  message       String
+  isRead        Boolean  @default(false)
   appointmentId String? // Optional reference to appointment
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  user        User     @relation("UserNotifications", fields: [userId], references: [id])
+  user        User         @relation("UserNotifications", fields: [userId], references: [id])
   appointment Appointment? @relation("AppointmentNotifications", fields: [appointmentId], references: [id])
 
   @@index([userId, isRead])
   @@index([createdAt])
 }
-
-

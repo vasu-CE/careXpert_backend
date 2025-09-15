@@ -584,6 +584,7 @@ const getAllDoctorAppointments = async (
       consultationFee: appointment.consultationFee,
       createdAt: appointment.createdAt,
       updatedAt: appointment.updatedAt,
+      prescriptionId: (appointment as any).prescriptionId || null,
       appointmentTime: {
         startTime: appointment.timeSlot?.startTime,
         endTime: appointment.timeSlot?.endTime,
@@ -872,6 +873,101 @@ const markNotificationAsRead = async (req: Request, res: Response): Promise<void
   }
 };
 
+// Add a prescription to an appointment (text-based)
+const addPrescriptionToAppointment = async (req: Request, res: Response): Promise<void> => {
+  const { appointmentId } = req.params;
+  const { prescriptionText, notes } = req.body as { prescriptionText?: string; notes?: string };
+  const doctorUserId = (req as any).user?.id;
+
+  try {
+    if (!prescriptionText || prescriptionText.trim().length < 3) {
+      res.status(400).json(new ApiError(400, "Prescription text is required"));
+      return;
+    }
+
+    const doctor = await prisma.doctor.findUnique({ where: { userId: doctorUserId } });
+    if (!doctor) {
+      res.status(403).json(new ApiError(403, "Only doctors can add prescriptions"));
+      return;
+    }
+
+    const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
+    if (!appointment || appointment.doctorId !== doctor.id) {
+      res.status(404).json(new ApiError(404, "Appointment not found or unauthorized"));
+      return;
+    }
+
+    // Create prescription and link to appointment
+    const prescription = await prisma.prescription.create({
+      data: {
+        doctorId: appointment.doctorId,
+        patientId: appointment.patientId,
+        prescriptionText: prescriptionText.trim(),
+      },
+    });
+
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: {
+        prescriptionId: prescription.id,
+        notes: notes || undefined,
+      },
+      select : {
+        id : true,
+        patient : {
+          select : {
+            userId : true
+          }
+        }
+      }
+    });
+    console.log(updatedAppointment)
+    // Optional: notify patient that prescription is available
+    await prisma.notification.create({
+      data: {
+        userId: updatedAppointment.patient.userId,
+        type: "PRESCRIPTION_ADDED",
+        title: "Prescription Available",
+        message: "Your doctor has added a prescription for your appointment.",
+        appointmentId: appointment.id,
+      },
+    });
+
+    res.status(200).json(new ApiResponse(200, { appointment: updatedAppointment, prescriptionId: prescription.id }, "Prescription saved"));
+  } catch (error) {
+    res.status(500).json(new ApiError(500, "Failed to add prescription", [error]));
+  }
+};
+
+// Mark an appointment as completed
+const markAppointmentCompleted = async (req: Request, res: Response): Promise<void> => {
+  const { appointmentId } = req.params;
+  const doctorUserId = (req as any).user?.id;
+
+  try {
+    const doctor = await prisma.doctor.findUnique({ where: { userId: doctorUserId } });
+    if (!doctor) {
+      res.status(403).json(new ApiError(403, "Only doctors can change status"));
+      return;
+    }
+
+    const appointment = await prisma.appointment.findUnique({ where: { id: appointmentId } });
+    if (!appointment || appointment.doctorId !== doctor.id) {
+      res.status(404).json(new ApiError(404, "Appointment not found or unauthorized"));
+      return;
+    }
+
+    const updated = await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { status: AppointmentStatus.COMPLETED },
+    });
+
+    res.status(200).json(new ApiResponse(200, updated, "Appointment marked as completed"));
+  } catch (error) {
+    res.status(500).json(new ApiError(500, "Failed to mark appointment as completed", [error]));
+  }
+};
+
 export {
   viewDoctorAppointment,
   updateAppointmentStatus,
@@ -888,4 +984,6 @@ export {
   respondToAppointmentRequest,
   getDoctorNotifications,
   markNotificationAsRead,
+  addPrescriptionToAppointment,
+  markAppointmentCompleted,
 };

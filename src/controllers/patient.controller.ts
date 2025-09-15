@@ -1080,6 +1080,7 @@ const getAllPatientAppointments = async (
       notes: appointment.notes,
       consultationFee: appointment.consultationFee,
       createdAt: appointment.createdAt,
+      prescriptionId: (appointment as any).prescriptionId || null,
       doctor: {
         id: appointment.doctorId,
         name: appointment.doctor.user.name,
