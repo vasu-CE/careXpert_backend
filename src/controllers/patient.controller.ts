@@ -927,6 +927,27 @@ const bookDirectAppointment = async (
       return;
     }
 
+    // Check if patient already has a pending appointment with this doctor
+    const existingPendingAppointment = await prisma.appointment.findFirst({
+      where: {
+        patientId,
+        doctorId,
+        status: AppointmentStatus.PENDING,
+      },
+    });
+
+    if (existingPendingAppointment) {
+      res
+        .status(409)
+        .json(
+          new ApiError(
+            409,
+            "You already have a pending appointment request with this doctor. Please wait for their response before making another request."
+          )
+        );
+      return;
+    }
+
     // Check for conflicting appointments (same doctor, date, and time)
     const existingAppointment = await prisma.appointment.findFirst({
       where: {
