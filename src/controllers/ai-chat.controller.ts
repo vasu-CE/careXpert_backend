@@ -156,7 +156,7 @@ export const getChatHistory = async (req: any, res: any) => {
     const [chats, total] = await Promise.all([
       prisma.aiChat.findMany({
         where: { userId },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: "asc" },
         skip,
         take: limitNum,
         select: {
