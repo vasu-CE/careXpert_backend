@@ -251,3 +251,32 @@ export const getChatById = async (req: any, res: any) => {
     }
   }
 };
+
+/**
+ * Clear user's AI chat history
+ */
+export const clearChatHistory = async (req: any, res: any) => {
+  try {
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      throw new ApiError(401, "User authentication required");
+    }
+
+    await prisma.aiChat.deleteMany({ where: { userId } });
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, { cleared: true }, "Chat history cleared"));
+  } catch (error) {
+    console.error("Error in clearChatHistory:", error);
+
+    if (error instanceof ApiError) {
+      res
+        .status(error.statusCode)
+        .json(new ApiResponse(error.statusCode, null, error.message));
+    } else {
+      res.status(500).json(new ApiResponse(500, null, "Internal server error"));
+    }
+  }
+};

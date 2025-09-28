@@ -33,16 +33,17 @@ export function handleRoomSocket(io: Server, socket: Socket) {
           text: `Welcome to ${roomId} room!`,
         });
 
+        // Attach roomId so clients can filter by room
+        (welcomeMsg as any).roomId = roomId;
         socket.emit("message", welcomeMsg);
 
-        socket.broadcast.to(roomId).emit(
-          "message",
-          formatMessage({
-            senderId: undefined,
-            username: "CareXpert Bot",
-            text: `${username} has joined the room.`,
-          })
-        );
+        const joinMsg = formatMessage({
+          senderId: undefined,
+          username: "CareXpert Bot",
+          text: `${username} has joined the room.`,
+        });
+        (joinMsg as any).roomId = roomId;
+        socket.broadcast.to(roomId).emit("message", joinMsg);
       } catch (error) {
         console.error("Error in joinRoom:", error);
         socket.emit("error", "Failed to join room");
@@ -54,7 +55,22 @@ export function handleRoomSocket(io: Server, socket: Socket) {
     "roomMessage",
     async (message: { event: string; data: RoomMessageData }) => {
       try {
-        const { senderId, username, roomId, text, image } = message.data;
+        let { senderId, username, roomId, text, image } = message.data;
+
+        // Fallback: if senderId is missing (seen in some patient emits), try to resolve by username
+        if (!senderId && username) {
+          const user = await prisma.user.findFirst({
+            where: { name: { equals: username, mode: "insensitive" } },
+            select: { id: true },
+          });
+          if (user) senderId = user.id;
+        }
+
+        // If still missing, do not attempt to persist; notify client
+        if (!senderId) {
+          socket.emit("error", "Missing senderId for room message");
+          return;
+        }
 
         const messageData = {
           roomId,
@@ -64,9 +80,10 @@ export function handleRoomSocket(io: Server, socket: Socket) {
         };
 
         const formattedMessage = formatMessage(messageData);
+        (formattedMessage as any).roomId = roomId;
 
-        // Broadcast
-        io.in(roomId).emit("message", formattedMessage);
+        // Broadcast to everyone else in the room (avoid echo to sender to prevent duplicate on client)
+        socket.to(roomId).emit("message", formattedMessage);
 
         // Persist to DB
         await prisma.chatMessage.create({

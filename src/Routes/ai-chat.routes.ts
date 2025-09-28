@@ -3,6 +3,7 @@ import {
   processSymptoms,
   getChatHistory,
   getChatById,
+  clearChatHistory,
 } from "../controllers/ai-chat.controller";
 import { isAuthenticated } from "../middlewares/auth.middleware";
 
@@ -19,5 +20,8 @@ router.get("/history", getChatHistory as any);
 
 // GET /api/ai-chat/:chatId - Get a specific AI chat by ID
 router.get("/:chatId", getChatById as any);
+
+// DELETE /api/ai-chat/history - Clear user's AI chat history
+router.delete("/history", clearChatHistory as any);
 
 export default router;
